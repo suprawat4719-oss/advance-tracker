@@ -12,6 +12,9 @@ body{font-family:sans-serif;background:#F0F4F8;color:var(--navy)}
 .hdr h1{color:#fff;font-size:17px;flex:1}
 .badge{font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(255,255,255,.1);color:#94A3B8}
 .badge.on{background:rgba(22,163,74,.2);color:#4ADE80}
+.badge.local{background:rgba(245,158,11,.2);color:#FCD34D}
+.noti{padding:8px 14px;font-size:12px;text-align:center;display:none}
+.noti.warn{background:#FEF3C7;color:#92400E;display:block}
 .tabs{background:#fff;display:flex;border-bottom:2px solid var(--border);position:sticky;top:50px;z-index:98}
 .tb{flex:1;padding:11px 4px;border:none;background:none;font-size:12px;color:var(--gray);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px}
 .tb.on{color:var(--blue);border-bottom-color:var(--blue)}
@@ -40,9 +43,7 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
 .txc{background:#fff;border-radius:10px;padding:12px 14px;margin-bottom:8px;box-shadow:var(--shadow);display:flex;align-items:center;gap:10px}
 .txi{width:38px;height:38px;border-radius:9px;background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
 .txinfo{flex:1;min-width:0}
-.txd{font-size:11px;color:var(--gray)}
-.txb{font-size:13px;font-weight:500}
-.txs{font-size:11px;color:var(--gray)}
+.txd{font-size:11px;color:var(--gray)}.txb{font-size:13px;font-weight:500}.txs{font-size:11px;color:var(--gray)}
 .txa{font-size:14px;font-weight:700;color:var(--blue);white-space:nowrap}
 .txr{font-size:10px;color:#CBD5E1}
 .del{background:none;border:none;color:#CBD5E1;font-size:17px;cursor:pointer;padding:4px}
@@ -55,22 +56,21 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
 .prev .pi{padding:10px 14px}
 .rcard{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;display:none}
 .rcard .rt{font-size:13px;font-weight:600;margin-bottom:10px}
-.rf{margin-bottom:9px}
-.rf label{font-size:11px;color:var(--gray);display:block;margin-bottom:2px}
+.rf{margin-bottom:9px}.rf label{font-size:11px;color:var(--gray);display:block;margin-bottom:2px}
 .lstate{background:#FEF3C7;border-radius:12px;padding:18px;text-align:center;margin-bottom:12px;display:none}
 .spin{width:34px;height:34px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:sp .8s linear infinite;margin:0 auto 8px}
 @keyframes sp{to{transform:rotate(360deg)}}
-.btn{width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;margin-top:4px}
+.btn{width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px}
 .btn-g{background:var(--green);color:#fff}
 .btn-b{background:var(--blue);color:#fff}
 .btn-o{background:#fff;color:var(--blue);border:2px solid var(--blue)}
+.btn-y{background:#F59E0B;color:#fff}
 .mo{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:flex-end}
 .mo.on{display:flex}
 .mbox{background:#fff;border-radius:18px 18px 0 0;padding:22px 18px 32px;width:100%;animation:su .3s ease}
 @keyframes su{from{transform:translateY(100%)}}
 .mbox h3{font-size:15px;font-weight:600;margin-bottom:14px}
-.mf{margin-bottom:11px}
-.mf label{font-size:11px;color:var(--gray);display:block;margin-bottom:3px}
+.mf{margin-bottom:11px}.mf label{font-size:11px;color:var(--gray);display:block;margin-bottom:3px}
 .mf input{border:1.5px solid var(--border);border-radius:9px;padding:10px 13px;font-size:14px;width:100%}
 .empty{text-align:center;padding:28px 16px;color:var(--gray)}
 .empty .ei{font-size:38px;margin-bottom:8px}
@@ -79,21 +79,20 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
 .expbox{background:#F3F4F6;border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px}
 .exprow{display:flex;justify-content:space-between;margin-bottom:5px}
 .exprow.last{border-top:1px solid var(--border);padding-top:7px;margin-top:5px}
-.api-bar{background:#FEF3C7;padding:10px 14px;display:flex;align-items:center;gap:8px;font-size:12px}
-.api-bar button{background:var(--blue);color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap}
+.divider{border:none;border-top:1px solid var(--border);margin:12px 0}
 </style>
 </head>
 <body>
 
 <div class="hdr">
-  <div style="flex:1"><h1>💼 เบิกล่วงหน้า</h1><div style="color:#94A3B8;font-size:11px">ระบบบันทึกเบิกเงินล่วงหน้าพนักงาน</div></div>
-  <div class="badge" id="sb">⏳ กำลังเชื่อมต่อ...</div>
+  <div style="flex:1">
+    <h1>💼 เบิกล่วงหน้า</h1>
+    <div style="color:#94A3B8;font-size:11px">ระบบบันทึกเบิกเงินล่วงหน้าพนักงาน</div>
+  </div>
+  <div class="badge" id="sb">⏳ กำลังโหลด...</div>
 </div>
 
-<div id="api-bar" class="api-bar" style="display:none">
-  ⚠️ ยังไม่มี API Key สำหรับอ่านสลิป
-  <button onclick="setApiKey()">ตั้งค่า API Key</button>
-</div>
+<div class="noti" id="noti"></div>
 
 <div class="tabs">
   <button class="tb on" onclick="goTab('dashboard',this)">📊 สรุป</button>
@@ -101,6 +100,7 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
   <button class="tb" onclick="goTab('export',this)">📤 ส่งออก</button>
 </div>
 
+<!-- DASHBOARD -->
 <div class="pg on" id="pg-dashboard">
   <div class="card row" style="margin-bottom:12px">
     <label>พนักงาน</label>
@@ -110,6 +110,7 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
   <div id="dash"></div>
 </div>
 
+<!-- UPLOAD -->
 <div class="pg" id="pg-upload">
   <div class="card row" style="margin-bottom:12px">
     <label>บันทึกให้</label>
@@ -133,19 +134,25 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
     <div class="rf"><label>ผู้โอน</label><input type="text" id="rs"></div>
     <div class="rf"><label>จำนวนเงิน (บาท)</label><input type="number" id="ra"></div>
     <div class="rf"><label>เลขที่อ้างอิง</label><input type="text" id="rr"></div>
+    <div class="rf"><label>ลิงก์รูปสลิป (Google Drive)</label><input type="text" id="rl" placeholder="วางลิงก์ Google Drive ที่นี่"></div>
     <button class="btn btn-g" onclick="saveTx()">💾 บันทึกรายการนี้</button>
     <button class="btn btn-o" onclick="resetUp()">🔄 อัพโหลดใหม่</button>
   </div>
 </div>
 
+<!-- EXPORT -->
 <div class="pg" id="pg-export">
   <div class="card row" style="margin-bottom:12px">
     <label>พนักงาน</label>
     <select class="sel" id="sel3" onchange="renderExp()"></select>
   </div>
   <div id="expbox"><p style="color:var(--gray);font-size:13px">เลือกพนักงานเพื่อส่งออกข้อมูล</p></div>
+  <hr class="divider">
+  <button class="btn btn-y" onclick="syncDown()">🔄 ดึงข้อมูลจาก Firebase ลงเครื่อง</button>
+  <button class="btn btn-o" onclick="setApiKey()">🔑 ตั้งค่า API Key</button>
 </div>
 
+<!-- MODAL -->
 <div class="mo" id="mo">
   <div class="mbox">
     <h3>➕ เพิ่มพนักงาน</h3>
@@ -170,37 +177,60 @@ firebase.initializeApp({
   appId:"1:186461314782:web:552ad245c22d36a53cac4f"
 });
 
-var db=firebase.firestore(),emps=[],curId=null,imgB64=null;
+var db=firebase.firestore();
+var emps=[],curId=null,imgB64=null,isOnline=false;
+var LOCAL_KEY='advance_tracker_v2';
 
-function checkApiKey(){
-  var k=localStorage.getItem('anthropic_api_key');
-  document.getElementById('api-bar').style.display=k?'none':'flex';
+function saveLocal(){try{localStorage.setItem(LOCAL_KEY,JSON.stringify(emps));}catch(e){}}
+function loadLocal(){try{var d=localStorage.getItem(LOCAL_KEY);if(d)emps=JSON.parse(d);}catch(e){emps=[];}}
+
+function setSB(mode){
+  var b=document.getElementById('sb');
+  var n=document.getElementById('noti');
+  if(mode==='online'){b.textContent='🟢 ออนไลน์';b.className='badge on';n.className='noti';}
+  else if(mode==='offline'){b.textContent='🟡 ออฟไลน์';b.className='badge local';n.className='noti warn';n.textContent='⚠️ ไม่มีอินเทอร์เน็ต — ใช้ข้อมูลในเครื่อง บันทึกได้ตามปกติ';}
+  else{b.textContent='⏳ กำลังโหลด...';b.className='badge';n.className='noti';}
 }
-
-function setApiKey(){
-  var k=prompt('กรอก Anthropic API Key ของคุณ:\n(เริ่มต้นด้วย sk-ant-...)');
-  if(k&&k.trim().startsWith('sk-ant-')){
-    localStorage.setItem('anthropic_api_key',k.trim());
-    document.getElementById('api-bar').style.display='none';
-    toast('✅ บันทึก API Key เรียบร้อย');
-  } else if(k){
-    toast('❌ API Key ไม่ถูกต้อง ต้องเริ่มด้วย sk-ant-');
-  }
-}
-
-function setSB(on){var b=document.getElementById('sb');b.textContent=on?'🟢 เชื่อมต่อแล้ว':'🔴 ออฟไลน์';b.className='badge'+(on?' on':'');}
 
 async function loadEmps(){
+  // โหลด local ก่อนเสมอ
+  loadLocal();
+  if(emps.length>0){if(!curId)curId=emps[0].id;refSel();renderDash();}
+  // แล้วลอง Firebase
   try{
     var s=await db.collection('employees').get();
     emps=s.docs.map(function(d){return Object.assign({id:d.id},d.data());});
-    setSB(true);
+    saveLocal();isOnline=true;setSB('online');
     if(!curId&&emps.length>0)curId=emps[0].id;
     refSel();renderDash();
   }catch(e){
-    setSB(false);
-    document.getElementById('dash').innerHTML='<div class="empty"><div class="ei">❌</div><p>เชื่อมต่อไม่ได้</p></div>';
+    isOnline=false;setSB('offline');
+    if(emps.length===0)document.getElementById('dash').innerHTML='<div class="empty"><div class="ei">📭</div><p>ยังไม่มีข้อมูล</p></div>';
   }
+}
+
+// ดึงข้อมูลจาก Firebase ลงเครื่อง (manual)
+async function syncDown(){
+  toast('🔄 กำลังดึงข้อมูลจาก Firebase...');
+  try{
+    var s=await db.collection('employees').get();
+    emps=s.docs.map(function(d){return Object.assign({id:d.id},d.data());});
+    saveLocal();isOnline=true;setSB('online');
+    if(!curId&&emps.length>0)curId=emps[0].id;
+    refSel();renderDash();renderExp();
+    toast('✅ ดึงข้อมูลสำเร็จ — บันทึกในเครื่องแล้ว');
+  }catch(e){toast('❌ ไม่สามารถเชื่อมต่อ Firebase ได้');}
+}
+
+async function saveToFirebase(id,data){
+  if(isOnline){try{await db.collection('employees').doc(id).update(data);return true;}catch(e){isOnline=false;setSB('offline');return false;}}
+  return false;
+}
+
+function setApiKey(){
+  var k=prompt('กรอก Anthropic API Key:\n(เริ่มต้นด้วย sk-ant-)');
+  if(k&&k.trim().startsWith('sk-ant-')){localStorage.setItem('anthropic_api_key',k.trim());toast('✅ บันทึก API Key เรียบร้อย');}
+  else if(k){toast('❌ API Key ไม่ถูกต้อง');}
 }
 
 function goTab(t,btn){
@@ -229,9 +259,11 @@ async function saveEmp(){
   var s=parseFloat(document.getElementById('ms').value)||0;
   var c=parseFloat(document.getElementById('mc').value)||0;
   if(!n){toast('กรุณากรอกชื่อพนักงาน');return;}
+  var newEmp={name:n,bank:k,salary:s,carry:c,transactions:[]};
   try{
-    var r=await db.collection('employees').add({name:n,bank:k,salary:s,carry:c,transactions:[]});
-    curId=r.id;await loadEmps();closeMo();
+    if(isOnline){var r=await db.collection('employees').add(newEmp);newEmp.id=r.id;}
+    else{newEmp.id='local_'+Date.now();toast('⚠️ บันทึกในเครื่องก่อน');}
+    emps.push(newEmp);curId=newEmp.id;saveLocal();refSel();renderDash();closeMo();
     ['mn','mk','ms','mc'].forEach(function(id){document.getElementById(id).value='';});
     toast('✅ เพิ่มพนักงานเรียบร้อย');
   }catch(e){toast('❌ บันทึกไม่สำเร็จ');}
@@ -247,88 +279,39 @@ function renderDash(){
   var out=(emp.salary||0)-(emp.carry||0)-tot;
   var pos=out>=0;
   var txH=tx.length===0?'<div class="empty"><div class="ei">📭</div><p>ยังไม่มีรายการเบิก</p></div>':
-    tx.map(function(t,i){
-      return'<div class="txc"><div class="txi">🏦</div><div class="txinfo"><div class="txd">'+t.date+'</div><div class="txb">'+t.bank+'</div><div class="txs">'+t.sender+'</div><div class="txr">'+(t.ref||'')+'</div></div><div><div class="txa">฿'+t.amount.toLocaleString('th-TH',{minimumFractionDigits:2})+'</div><button class="del" onclick="delTx('+i+')">🗑️</button></div></div>';
-    }).join('');
+    tx.map(function(t,i){    return'<div class="txc"><div class="txi">🏦</div><div class="txinfo"><div class="txd">'+t.date+'</div><div class="txb">'+t.bank+'</div><div class="txs">'+t.sender+'</div><div class="txr">'+(t.ref||'')+'</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><div class="txa">฿'+t.amount.toLocaleString('th-TH',{minimumFractionDigits:2})+'</div>'+(t.imgUrl?'<a href="'+t.imgUrl+'" target="_blank" style="font-size:11px;color:var(--blue);text-decoration:none">🖼️ ดูสลิป</a>':'')+'<button class="del" onclick="delTx('+i+')">🗑️</button></div></div>';}).join('');
   c.innerHTML='<div class="emp-card"><div class="nm">'+emp.name+'</div><div class="sub">'+(emp.bank||'')+'</div><div class="grid2"><div class="fi"><label>ฐานเงินเดือน (บาท)</label><input type="number" value="'+(emp.salary||'')+'" placeholder="กรอกเงินเดือน" onchange="updSalary(this.value)"></div><div class="fi"><label>ยกมาเดือนก่อน (บาท)</label><input type="number" value="'+(emp.carry||'')+'" placeholder="0" onchange="updCarry(this.value)"></div></div></div><div class="sum2"><div class="sbox"><div class="sl">รวมเบิกเดือนนี้</div><div class="sv" style="color:var(--blue)">฿'+tot.toLocaleString('th-TH',{minimumFractionDigits:2})+'</div></div><div class="sbox"><div class="sl">จำนวนรายการ</div><div class="sv">'+tx.length+' รายการ</div></div></div><div class="obox"><div><div style="font-size:13px;color:var(--gray)">ยอดคงค้าง</div><div style="font-size:11px;color:var(--gray)">เงินเดือน − ยกมา − เบิกเดือนนี้</div></div><div class="ov '+(pos?'pos':'neg')+'">'+(pos?'+':'')+'฿'+out.toLocaleString('th-TH',{minimumFractionDigits:2})+'</div></div><div class="stitle">📋 รายการเบิกล่วงหน้า</div>'+txH;
 }
 
-async function updSalary(v){var e=getEmp();if(!e)return;await db.collection('employees').doc(e.id).update({salary:parseFloat(v)||0});await loadEmps();}
-async function updCarry(v){var e=getEmp();if(!e)return;await db.collection('employees').doc(e.id).update({carry:parseFloat(v)||0});await loadEmps();}
+async function updSalary(v){var e=getEmp();if(!e)return;e.salary=parseFloat(v)||0;saveLocal();await saveToFirebase(e.id,{salary:e.salary});renderDash();}
+async function updCarry(v){var e=getEmp();if(!e)return;e.carry=parseFloat(v)||0;saveLocal();await saveToFirebase(e.id,{carry:e.carry});renderDash();}
 
 async function delTx(i){
   var e=getEmp();if(!e||!confirm('ลบรายการนี้?'))return;
   var tx=[].concat(e.transactions||[]);tx.splice(i,1);
-  await db.collection('employees').doc(e.id).update({transactions:tx});
-  await loadEmps();toast('🗑️ ลบรายการแล้ว');
+  e.transactions=tx;saveLocal();await saveToFirebase(e.id,{transactions:tx});renderDash();toast('🗑️ ลบรายการแล้ว');
 }
 
 function onFile(inp){
   var f=inp.files[0];if(!f)return;
   var r=new FileReader();
-  r.onload=function(e){
-    imgB64=e.target.result.split(',')[1];
-    document.getElementById('pimg').src=e.target.result;
-    document.getElementById('prev').style.display='block';
-    document.getElementById('rc').style.display='none';
-    analyzeSlip();
-  };
+  r.onload=function(e){imgB64=e.target.result.split(',')[1];document.getElementById('pimg').src=e.target.result;document.getElementById('prev').style.display='block';document.getElementById('rc').style.display='none';analyzeSlip();};
   r.readAsDataURL(f);
 }
 
 async function analyzeSlip(){
   var apiKey=localStorage.getItem('anthropic_api_key');
-  if(!apiKey){
-    setApiKey();
-    apiKey=localStorage.getItem('anthropic_api_key');
-    if(!apiKey){
-      document.getElementById('rc').style.display='block';
-      toast('⚠️ ไม่มี API Key กรุณากรอกเอง');
-      return;
-    }
-  }
-  document.getElementById('ls').style.display='block';
-  document.getElementById('rc').style.display='none';
+  if(!apiKey){setApiKey();apiKey=localStorage.getItem('anthropic_api_key');if(!apiKey){document.getElementById('rc').style.display='block';toast('⚠️ ไม่มี API Key กรุณากรอกเอง');return;}}
+  document.getElementById('ls').style.display='block';document.getElementById('rc').style.display='none';
   try{
-    var res=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'x-api-key':apiKey,
-        'anthropic-version':'2023-06-01',
-        'anthropic-dangerous-direct-browser-access':'true'
-      },
-      body:JSON.stringify({
-        model:'claude-haiku-4-5-20251001',
-        max_tokens:500,
-        system:'อ่านสลิปโอนเงินไทย ตอบ JSON เท่านั้น ไม่มี markdown: {"date":"","bank":"","sender":"","amount":0,"ref":""}',
-        messages:[{role:'user',content:[
-          {type:'image',source:{type:'base64',media_type:'image/jpeg',data:imgB64}},
-          {type:'text',text:'อ่านสลิปนี้'}
-        ]}]
-      })
-    });
+    var res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:500,system:'อ่านสลิปโอนเงินไทย ตอบ JSON เท่านั้น ไม่มี markdown: {"date":"","bank":"","sender":"","amount":0,"ref":""}',messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:imgB64}},{type:'text',text:'อ่านสลิปนี้'}]}]})});
     var data=await res.json();
-    if(data.error){
-      localStorage.removeItem('anthropic_api_key');
-      checkApiKey();
-      toast('❌ API Key ไม่ถูกต้อง กรุณาตั้งค่าใหม่');
-      document.getElementById('ls').style.display='none';
-      document.getElementById('rc').style.display='block';
-      return;
-    }
+    if(data.error){localStorage.removeItem('anthropic_api_key');toast('❌ API Key ไม่ถูกต้อง');document.getElementById('ls').style.display='none';document.getElementById('rc').style.display='block';return;}
     var txt=data.content.map(function(c){return c.text||'';}).join('').replace(/```json|```/g,'').trim();
     var p=JSON.parse(txt);
-    document.getElementById('rd').value=p.date||'';
-    document.getElementById('rb').value=p.bank||'';
-    document.getElementById('rs').value=p.sender||'';
-    document.getElementById('ra').value=p.amount||'';
-    document.getElementById('rr').value=p.ref||'';
-  }catch(e){
-    toast('⚠️ อ่านไม่ได้ กรุณากรอกเอง');
-  }
-  document.getElementById('ls').style.display='none';
-  document.getElementById('rc').style.display='block';
+    document.getElementById('rd').value=p.date||'';document.getElementById('rb').value=p.bank||'';document.getElementById('rs').value=p.sender||'';document.getElementById('ra').value=p.amount||'';document.getElementById('rr').value=p.ref||'';
+  }catch(e){toast('⚠️ อ่านไม่ได้ กรุณากรอกเอง');}
+  document.getElementById('ls').style.display='none';document.getElementById('rc').style.display='block';
 }
 
 async function saveTx(){
@@ -337,30 +320,16 @@ async function saveTx(){
   if(!emp){toast('กรุณาเลือกพนักงานก่อน');return;}
   var amt=parseFloat(document.getElementById('ra').value);
   if(!amt||amt<=0){toast('กรุณากรอกจำนวนเงิน');return;}
-  var tx={
-    date:document.getElementById('rd').value||'-',
-    bank:document.getElementById('rb').value||'-',
-    sender:document.getElementById('rs').value||'-',
-    amount:amt,
-    ref:document.getElementById('rr').value||'',
-    savedAt:new Date().toISOString()
-  };
-  try{
-    var list=[].concat(emp.transactions||[]);list.push(tx);
-    await db.collection('employees').doc(eid).update({transactions:list});
-    curId=eid;await loadEmps();resetUp();
-    toast('✅ บันทึก ฿'+amt.toLocaleString('th-TH')+' สำเร็จ');
-    goTab('dashboard',document.querySelectorAll('.tb')[0]);
-  }catch(e){toast('❌ บันทึกไม่สำเร็จ');}
+  var tx={date:document.getElementById('rd').value||'-',bank:document.getElementById('rb').value||'-',sender:document.getElementById('rs').value||'-',amount:amt,ref:document.getElementById('rr').value||'',imgUrl:document.getElementById('rl').value||'',savedAt:new Date().toISOString()};
+  var list=[].concat(emp.transactions||[]);list.push(tx);
+  emp.transactions=list;saveLocal();
+  var fbOk=await saveToFirebase(eid,{transactions:list});
+  resetUp();curId=eid;refSel();renderDash();
+  toast(fbOk?'✅ บันทึกสำเร็จ (ออนไลน์)':'✅ บันทึกในเครื่องแล้ว (ออฟไลน์)');
+  goTab('dashboard',document.querySelectorAll('.tb')[0]);
 }
 
-function resetUp(){
-  imgB64=null;
-  document.getElementById('fi').value='';
-  document.getElementById('prev').style.display='none';
-  document.getElementById('rc').style.display='none';
-  document.getElementById('ls').style.display='none';
-}
+function resetUp(){imgB64=null;document.getElementById('fi').value='';document.getElementById('rl').value='';document.getElementById('prev').style.display='none';document.getElementById('rc').style.display='none';document.getElementById('ls').style.display='none';}
 
 function renderExp(){
   var eid=document.getElementById('sel3').value;
@@ -378,31 +347,20 @@ function expCSV(eid){
   var tx=emp.transactions||[];
   var rows=[['#','วันที่โอน','ธนาคาร','ผู้โอน','จำนวนเงิน','เลขอ้างอิง']].concat(tx.map(function(t,i){return[i+1,t.date,t.bank,t.sender,t.amount,t.ref];}));
   var csv=rows.map(function(r){return r.join(',');}).join('\n');
-  var a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
-  a.download='เบิกล่วงหน้า_'+emp.name+'.csv';
-  a.click();
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));a.download='เบิกล่วงหน้า_'+emp.name+'.csv';a.click();
 }
 
 function cpTxt(eid){
   var emp=emps.find(function(e){return e.id===eid;});if(!emp)return;
-  var tx=emp.transactions||[];
-  var tot=tx.reduce(function(s,t){return s+t.amount;},0);
-  var out=(emp.salary||0)-(emp.carry||0)-tot;
+  var tx=emp.transactions||[];var tot=tx.reduce(function(s,t){return s+t.amount;},0);var out=(emp.salary||0)-(emp.carry||0)-tot;
   var t='รายการเบิกล่วงหน้า — '+emp.name+'\n'+'='.repeat(34)+'\n';
   tx.forEach(function(x,i){t+=(i+1)+'. '+x.date+' | '+x.bank+' | ฿'+x.amount.toLocaleString('th-TH')+'\n';});
   t+='='.repeat(34)+'\nรวมเบิก: ฿'+tot.toLocaleString('th-TH')+'\nยอดคงค้าง: '+(out>=0?'+':'')+'฿'+out.toLocaleString('th-TH')+'\n';
   navigator.clipboard.writeText(t).then(function(){toast('📋 คัดลอกแล้ว');});
 }
 
-function toast(msg){
-  var t=document.createElement('div');
-  t.className='toast';t.textContent=msg;
-  document.body.appendChild(t);
-  setTimeout(function(){t.remove();},2500);
-}
+function toast(msg){var t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.remove();},2500);}
 
-checkApiKey();
 loadEmps();
 </script>
 </body>
