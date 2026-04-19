@@ -65,9 +65,10 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
 .btn-b{background:var(--blue);color:#fff}
 .btn-o{background:#fff;color:var(--blue);border:2px solid var(--blue)}
 .btn-y{background:#F59E0B;color:#fff}
-.mo{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:flex-end}
+.btn-p{background:#7C3AED;color:#fff}
+.mo{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:flex-end;overflow-y:auto}
 .mo.on{display:flex}
-.mbox{background:#fff;border-radius:18px 18px 0 0;padding:22px 18px 32px;width:100%;animation:su .3s ease}
+.mbox{background:#fff;border-radius:18px 18px 0 0;padding:22px 18px 32px;width:100%;animation:su .3s ease;margin-top:auto}
 @keyframes su{from{transform:translateY(100%)}}
 .mbox h3{font-size:15px;font-weight:600;margin-bottom:14px}
 .mf{margin-bottom:11px}.mf label{font-size:11px;color:var(--gray);display:block;margin-bottom:3px}
@@ -76,22 +77,27 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
 .empty .ei{font-size:38px;margin-bottom:8px}
 .toast{position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:9px 18px;border-radius:22px;font-size:12px;z-index:999;white-space:nowrap}
 .stitle{font-size:13px;font-weight:600;margin-bottom:8px}
+.sec-title{font-size:12px;font-weight:600;color:var(--gray);margin:14px 0 8px;text-transform:uppercase;letter-spacing:.5px}
 .expbox{background:#F3F4F6;border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px}
 .exprow{display:flex;justify-content:space-between;margin-bottom:5px}
 .exprow.last{border-top:1px solid var(--border);padding-top:7px;margin-top:5px}
 .divider{border:none;border-top:1px solid var(--border);margin:12px 0}
+/* extra income/deduct section in emp card */
+.xsec{background:rgba(255,255,255,.06);border-radius:10px;padding:12px;margin-top:10px}
+.xsec .xt{font-size:11px;color:#94A3B8;margin-bottom:8px;font-weight:600}
+.xgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.xfi label{font-size:11px;color:#94A3B8;display:block;margin-bottom:2px}
+.xfi input{background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);border-radius:8px;padding:7px 9px;font-size:13px;width:100%;color:#fff}
+.xfi input:focus{outline:none;border-color:rgba(255,255,255,.4)}
+.xfi.full{grid-column:1/-1}
 </style>
 </head>
 <body>
 
 <div class="hdr">
-  <div style="flex:1">
-    <h1>💼 เบิกล่วงหน้า</h1>
-    <div style="color:#94A3B8;font-size:11px">ระบบบันทึกเบิกเงินล่วงหน้าพนักงาน</div>
-  </div>
+  <div style="flex:1"><h1>💼 เบิกล่วงหน้า</h1><div style="color:#94A3B8;font-size:11px">ระบบบันทึกเบิกเงินล่วงหน้าพนักงาน</div></div>
   <div class="badge" id="sb">⏳ กำลังโหลด...</div>
 </div>
-
 <div class="noti" id="noti"></div>
 
 <div class="tabs">
@@ -122,16 +128,13 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
     <div style="font-size:12px;color:var(--gray)">แตะเพื่อเลือกรูปสลิป</div>
   </div>
   <input type="file" id="fi" accept="image/*" onchange="onFile(this)" style="display:none">
-  <div class="prev" id="prev">
-    <img id="pimg" src="" alt="slip">
-    <div class="pi"><span style="background:#DBEAFE;color:var(--blue);padding:2px 8px;border-radius:20px;font-size:11px">🖼️ ตรวจสอบรูปแล้ว</span></div>
-  </div>
+  <div class="prev" id="prev"><img id="pimg" src="" alt="slip"><div class="pi"><span style="background:#DBEAFE;color:var(--blue);padding:2px 8px;border-radius:20px;font-size:11px">🖼️ ตรวจสอบรูปแล้ว</span></div></div>
   <div class="lstate" id="ls"><div class="spin"></div><p style="font-weight:600">กำลังอ่านข้อมูลจากสลิป...</p></div>
   <div class="rcard" id="rc">
     <div class="rt">✅ ข้อมูลจากสลิป — ตรวจสอบก่อนบันทึก</div>
     <div class="rf"><label>วันที่โอน</label><input type="text" id="rd"></div>
     <div class="rf"><label>ธนาคารผู้โอน</label><input type="text" id="rb"></div>
-    <div class="rf"><label>ผู้โอน</label><input type="text" id="rs"></div>
+    <div class="rf"><label>ผู้รับโอน</label><input type="text" id="rp" placeholder="ชื่อผู้รับโอนจากสลิป"></div>
     <div class="rf"><label>จำนวนเงิน (บาท)</label><input type="number" id="ra"></div>
     <div class="rf"><label>เลขที่อ้างอิง</label><input type="text" id="rr"></div>
     <div class="rf"><label>ลิงก์รูปสลิป (Google Drive)</label><input type="text" id="rl" placeholder="วางลิงก์ Google Drive ที่นี่"></div>
@@ -148,11 +151,12 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
   </div>
   <div id="expbox"><p style="color:var(--gray);font-size:13px">เลือกพนักงานเพื่อส่งออกข้อมูล</p></div>
   <hr class="divider">
+  <button class="btn btn-p" onclick="printSlip()">📄 ออกสลิปเงินเดือน PDF</button>
   <button class="btn btn-y" onclick="syncDown()">🔄 ดึงข้อมูลจาก Firebase ลงเครื่อง</button>
-  <button class="btn btn-o" onclick="setApiKey()" style="margin-top:8px">🔑 ตั้งค่า API Key</button>
+  <button class="btn btn-o" onclick="setApiKey()">🔑 ตั้งค่า API Key</button>
 </div>
 
-<!-- MODAL -->
+<!-- MODAL เพิ่มพนักงาน -->
 <div class="mo" id="mo">
   <div class="mbox">
     <h3>➕ เพิ่มพนักงาน</h3>
@@ -165,38 +169,47 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
   </div>
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script>
-firebase.initializeApp({
-  apiKey:"AIzaSyDgjfoPXa9hWIypcUKsGq7-2EP5FvGB3iM",
-  authDomain:"advance-tracker-cadf5.firebaseapp.com",
-  projectId:"advance-tracker-cadf5",
-  storageBucket:"advance-tracker-cadf5.firebasestorage.app",
-  messagingSenderId:"186461314782",
-  appId:"1:186461314782:web:552ad245c22d36a53cac4f"
-});
-
-var db=firebase.firestore();
-var emps=[],curId=null,imgB64=null,isOnline=false;
+var db, emps=[], curId=null, imgB64=null, isOnline=false;
 var LOCAL_KEY='advance_tracker_v2';
+
+function loadFirestore(){
+  var s2=document.createElement('script');
+  s2.src='https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js';
+  s2.onload=function(){
+    firebase.initializeApp({
+      apiKey:"AIzaSyDgjfoPXa9hWIypcUKsGq7-2EP5FvGB3iM",
+      authDomain:"advance-tracker-cadf5.firebaseapp.com",
+      projectId:"advance-tracker-cadf5",
+      storageBucket:"advance-tracker-cadf5.firebasestorage.app",
+      messagingSenderId:"186461314782",
+      appId:"1:186461314782:web:552ad245c22d36a53cac4f"
+    });
+    db=firebase.firestore();
+    loadEmps();
+  };
+  document.head.appendChild(s2);
+}
+(function(){
+  var s1=document.createElement('script');
+  s1.src='https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js';
+  s1.onload=loadFirestore;
+  document.head.appendChild(s1);
+})();
 
 function saveLocal(){try{localStorage.setItem(LOCAL_KEY,JSON.stringify(emps));}catch(e){}}
 function loadLocal(){try{var d=localStorage.getItem(LOCAL_KEY);if(d)emps=JSON.parse(d);}catch(e){emps=[];}}
 
 function setSB(mode){
-  var b=document.getElementById('sb');
-  var n=document.getElementById('noti');
+  var b=document.getElementById('sb'),n=document.getElementById('noti');
   if(mode==='online'){b.textContent='🟢 ออนไลน์';b.className='badge on';n.className='noti';}
   else if(mode==='offline'){b.textContent='🟡 ออฟไลน์';b.className='badge local';n.className='noti warn';n.textContent='⚠️ ไม่มีอินเทอร์เน็ต — ใช้ข้อมูลในเครื่อง บันทึกได้ตามปกติ';}
   else{b.textContent='⏳ กำลังโหลด...';b.className='badge';n.className='noti';}
 }
 
 async function loadEmps(){
-  // โหลด local ก่อนเสมอ
   loadLocal();
   if(emps.length>0){if(!curId)curId=emps[0].id;refSel();renderDash();}
-  // แล้วลอง Firebase
   try{
     var s=await db.collection('employees').get();
     emps=s.docs.map(function(d){return Object.assign({id:d.id},d.data());});
@@ -209,7 +222,6 @@ async function loadEmps(){
   }
 }
 
-// ดึงข้อมูลจาก Firebase ลงเครื่อง (manual)
 async function syncDown(){
   toast('🔄 กำลังดึงข้อมูลจาก Firebase...');
   try{
@@ -254,12 +266,10 @@ function openMo(){document.getElementById('mo').classList.add('on');document.get
 function closeMo(){document.getElementById('mo').classList.remove('on');}
 
 async function saveEmp(){
-  var n=document.getElementById('mn').value.trim();
-  var k=document.getElementById('mk').value.trim();
-  var s=parseFloat(document.getElementById('ms').value)||0;
-  var c=parseFloat(document.getElementById('mc').value)||0;
+  var n=document.getElementById('mn').value.trim(),k=document.getElementById('mk').value.trim();
+  var s=parseFloat(document.getElementById('ms').value)||0,c=parseFloat(document.getElementById('mc').value)||0;
   if(!n){toast('กรุณากรอกชื่อพนักงาน');return;}
-  var newEmp={name:n,bank:k,salary:s,carry:c,transactions:[]};
+  var newEmp={name:n,bank:k,salary:s,carry:c,extras:{ot:0,travel:0,phone:0,other:0},deducts:{absent:0,insurance:0,social:0},transactions:[]};
   try{
     if(isOnline){var r=await db.collection('employees').add(newEmp);newEmp.id=r.id;}
     else{newEmp.id='local_'+Date.now();toast('⚠️ บันทึกในเครื่องก่อน');}
@@ -271,16 +281,75 @@ async function saveEmp(){
 
 function getEmp(){return emps.find(function(e){return e.id===curId;});}
 
+/* helper: อ่านค่า input ตัวเลขแล้ว clamp ไม่ให้ติดลบ */
+function fv(id){return Math.max(0,parseFloat(document.getElementById(id).value)||0);}
+
+/* บันทึก extras+deducts ลง emp แล้ว sync */
+async function saveExtras(){
+  var e=getEmp();if(!e)return;
+  e.extras={ot:fv('x_ot'),travel:fv('x_travel'),phone:fv('x_phone'),other:fv('x_other')};
+  e.deducts={absent:fv('d_absent'),insurance:fv('d_insurance'),social:fv('d_social')};
+  saveLocal();
+  await saveToFirebase(e.id,{extras:e.extras,deducts:e.deducts});
+  renderDash();
+  toast('✅ บันทึกรายได้/หักแล้ว');
+}
+
 function renderDash(){
   var emp=getEmp(),c=document.getElementById('dash');
   if(!emp){c.innerHTML='<div class="empty"><div class="ei">👤</div><p>เพิ่มพนักงานก่อนเริ่มใช้งาน</p></div>';return;}
   var tx=emp.transactions||[];
   var tot=tx.reduce(function(s,t){return s+t.amount;},0);
-  var out=(emp.salary||0)-(emp.carry||0)-tot;
-  var pos=out>=0;
+  var ex=emp.extras||{};var de=emp.deducts||{};
+  var totalExtra=(ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0);
+  var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0);
+  var net=(emp.salary||0)+totalExtra-totalDeduct-(emp.carry||0)-tot;
+  var pos=net>=0;
+
   var txH=tx.length===0?'<div class="empty"><div class="ei">📭</div><p>ยังไม่มีรายการเบิก</p></div>':
-    tx.map(function(t,i){    return'<div class="txc"><div class="txi">🏦</div><div class="txinfo"><div class="txd">'+t.date+'</div><div class="txb">'+t.bank+'</div><div class="txs">👤 '+emp.name+'</div><div class="txr">'+(t.ref||'')+'</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><div class="txa">฿'+t.amount.toLocaleString('th-TH',{minimumFractionDigits:2})+'</div>'+(t.imgUrl?'<a href="'+t.imgUrl+'" target="_blank" style="font-size:11px;color:var(--blue);text-decoration:none">🖼️ ดูสลิป</a>':'')+'<button class="del" onclick="delTx('+i+')">🗑️</button></div></div>';}).join('');
-  c.innerHTML='<div class="emp-card"><div class="nm">'+emp.name+'</div><div class="sub">'+(emp.bank||'')+'</div><div class="grid2"><div class="fi"><label>ฐานเงินเดือน (บาท)</label><input type="number" value="'+(emp.salary||'')+'" placeholder="กรอกเงินเดือน" onchange="updSalary(this.value)"></div><div class="fi"><label>ยกมาเดือนก่อน (บาท)</label><input type="number" value="'+(emp.carry||'')+'" placeholder="0" onchange="updCarry(this.value)"></div></div></div><div class="sum2"><div class="sbox"><div class="sl">รวมเบิกเดือนนี้</div><div class="sv" style="color:var(--blue)">฿'+tot.toLocaleString('th-TH',{minimumFractionDigits:2})+'</div></div><div class="sbox"><div class="sl">จำนวนรายการ</div><div class="sv">'+tx.length+' รายการ</div></div></div><div class="obox"><div><div style="font-size:13px;color:var(--gray)">ยอดคงค้าง</div><div style="font-size:11px;color:var(--gray)">เงินเดือน − ยกมา − เบิกเดือนนี้</div></div><div class="ov '+(pos?'pos':'neg')+'">'+(pos?'+':'')+'฿'+out.toLocaleString('th-TH',{minimumFractionDigits:2})+'</div></div><div class="stitle">📋 รายการเบิกล่วงหน้า</div>'+txH;
+    tx.map(function(t,i){
+      return'<div class="txc"><div class="txi">🏦</div><div class="txinfo"><div class="txd">'+t.date+'</div><div class="txb">'+t.bank+'</div>'+(t.recipient?'<div class="txs">ผู้รับ: '+t.recipient+'</div>':'')+'<div class="txr">'+(t.ref||'')+'</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px"><div class="txa">฿'+t.amount.toLocaleString('th-TH',{minimumFractionDigits:2})+'</div>'+(t.imgUrl?'<a href="'+t.imgUrl+'" target="_blank" style="font-size:11px;color:var(--blue);text-decoration:none">🖼️ ดูสลิป</a>':'')+'<button class="del" onclick="delTx('+i+')">🗑️</button></div></div>';
+    }).join('');
+
+  c.innerHTML=
+    '<div class="emp-card">'+
+      '<div class="nm">'+emp.name+'</div>'+
+      '<div class="sub">'+(emp.bank||'')+'</div>'+
+      '<div class="grid2">'+
+        '<div class="fi"><label>ฐานเงินเดือน (บาท)</label><input type="number" value="'+(emp.salary||'')+'" placeholder="กรอกเงินเดือน" onchange="updSalary(this.value)"></div>'+
+        '<div class="fi"><label>ยกมาเดือนก่อน (บาท)</label><input type="number" value="'+(emp.carry||'')+'" placeholder="0" onchange="updCarry(this.value)"></div>'+
+      '</div>'+
+      /* รายได้เพิ่มเติม */
+      '<div class="xsec">'+
+        '<div class="xt">➕ รายได้เพิ่มเติม</div>'+
+        '<div class="xgrid">'+
+          '<div class="xfi"><label>ค่าล่วงเวลา</label><input type="number" id="x_ot" value="'+(ex.ot||'')+'" placeholder="0"></div>'+
+          '<div class="xfi"><label>ค่าเดินทาง</label><input type="number" id="x_travel" value="'+(ex.travel||'')+'" placeholder="0"></div>'+
+          '<div class="xfi"><label>ค่าโทร</label><input type="number" id="x_phone" value="'+(ex.phone||'')+'" placeholder="0"></div>'+
+          '<div class="xfi"><label>รายรับอื่นๆ</label><input type="number" id="x_other" value="'+(ex.other||'')+'" placeholder="0"></div>'+
+        '</div>'+
+      '</div>'+
+      /* รายการหัก */
+      '<div class="xsec" style="margin-top:8px">'+
+        '<div class="xt" style="color:#FCA5A5">➖ รายการหัก</div>'+
+        '<div class="xgrid">'+
+          '<div class="xfi"><label>ขาด/ลา/มาสาย</label><input type="number" id="d_absent" value="'+(de.absent||'')+'" placeholder="0"></div>'+
+          '<div class="xfi"><label>หักเงินประกัน</label><input type="number" id="d_insurance" value="'+(de.insurance||'')+'" placeholder="0"></div>'+
+          '<div class="xfi full"><label>หักประกันสังคม</label><input type="number" id="d_social" value="'+(de.social||'')+'" placeholder="0"></div>'+
+        '</div>'+
+        '<button onclick="saveExtras()" style="margin-top:10px;width:100%;padding:9px;border:none;border-radius:8px;background:rgba(255,255,255,.15);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">💾 บันทึกรายได้ / หัก</button>'+
+      '</div>'+
+    '</div>'+
+    /* สรุปยอด */
+    '<div class="sum2">'+
+      '<div class="sbox"><div class="sl">รวมเบิกเดือนนี้</div><div class="sv" style="color:var(--blue)">฿'+tot.toLocaleString('th-TH',{minimumFractionDigits:2})+'</div></div>'+
+      '<div class="sbox"><div class="sl">จำนวนรายการ</div><div class="sv">'+tx.length+' รายการ</div></div>'+
+    '</div>'+
+    '<div class="obox"><div>'+
+      '<div style="font-size:13px;color:var(--gray)">ยอดสุทธิ</div>'+
+      '<div style="font-size:11px;color:var(--gray)">เงินเดือน + รายได้เพิ่ม − หัก − ยกมา − เบิก</div>'+
+    '</div><div class="ov '+(pos?'pos':'neg')+'">'+(pos?'+':'')+'฿'+net.toLocaleString('th-TH',{minimumFractionDigits:2})+'</div></div>'+
+    '<div class="stitle">📋 รายการเบิกล่วงหน้า</div>'+txH;
 }
 
 async function updSalary(v){var e=getEmp();if(!e)return;e.salary=parseFloat(v)||0;saveLocal();await saveToFirebase(e.id,{salary:e.salary});renderDash();}
@@ -304,12 +373,16 @@ async function analyzeSlip(){
   if(!apiKey){setApiKey();apiKey=localStorage.getItem('anthropic_api_key');if(!apiKey){document.getElementById('rc').style.display='block';toast('⚠️ ไม่มี API Key กรุณากรอกเอง');return;}}
   document.getElementById('ls').style.display='block';document.getElementById('rc').style.display='none';
   try{
-    var res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:500,system:'อ่านสลิปโอนเงินไทย ตอบ JSON เท่านั้น ไม่มี markdown: {"date":"","bank":"","sender":"","amount":0,"ref":""}',messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:imgB64}},{type:'text',text:'อ่านสลิปนี้'}]}]})});
+    var res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:500,system:'อ่านสลิปโอนเงินไทย ตอบ JSON เท่านั้น ไม่มี markdown: {"date":"","bank":"","recipient":"","amount":0,"ref":""}',messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/jpeg',data:imgB64}},{type:'text',text:'อ่านสลิปนี้'}]}]})});
     var data=await res.json();
     if(data.error){localStorage.removeItem('anthropic_api_key');toast('❌ API Key ไม่ถูกต้อง');document.getElementById('ls').style.display='none';document.getElementById('rc').style.display='block';return;}
     var txt=data.content.map(function(c){return c.text||'';}).join('').replace(/```json|```/g,'').trim();
     var p=JSON.parse(txt);
-    document.getElementById('rd').value=p.date||'';document.getElementById('rb').value=p.bank||'';document.getElementById('rs').value=p.sender||'';document.getElementById('ra').value=p.amount||'';document.getElementById('rr').value=p.ref||'';
+    document.getElementById('rd').value=p.date||'';
+    document.getElementById('rb').value=p.bank||'';
+    document.getElementById('rp').value=p.recipient||'';
+    document.getElementById('ra').value=p.amount||'';
+    document.getElementById('rr').value=p.ref||'';
   }catch(e){toast('⚠️ อ่านไม่ได้ กรุณากรอกเอง');}
   document.getElementById('ls').style.display='none';document.getElementById('rc').style.display='block';
 }
@@ -320,7 +393,15 @@ async function saveTx(){
   if(!emp){toast('กรุณาเลือกพนักงานก่อน');return;}
   var amt=parseFloat(document.getElementById('ra').value);
   if(!amt||amt<=0){toast('กรุณากรอกจำนวนเงิน');return;}
-  var tx={date:document.getElementById('rd').value||'-',bank:document.getElementById('rb').value||'-',sender:document.getElementById('rs').value||'-',amount:amt,ref:document.getElementById('rr').value||'',imgUrl:document.getElementById('rl').value||'',savedAt:new Date().toISOString()};
+  var tx={
+    date:document.getElementById('rd').value||'-',
+    bank:document.getElementById('rb').value||'-',
+    recipient:document.getElementById('rp').value||'',
+    amount:amt,
+    ref:document.getElementById('rr').value||'',
+    imgUrl:document.getElementById('rl').value||'',
+    savedAt:new Date().toISOString()
+  };
   var list=[].concat(emp.transactions||[]);list.push(tx);
   emp.transactions=list;saveLocal();
   var fbOk=await saveToFirebase(eid,{transactions:list});
@@ -329,7 +410,15 @@ async function saveTx(){
   goTab('dashboard',document.querySelectorAll('.tb')[0]);
 }
 
-function resetUp(){imgB64=null;document.getElementById('fi').value='';document.getElementById('rl').value='';document.getElementById('prev').style.display='none';document.getElementById('rc').style.display='none';document.getElementById('ls').style.display='none';}
+function resetUp(){
+  imgB64=null;
+  document.getElementById('fi').value='';
+  document.getElementById('rl').value='';
+  document.getElementById('rp').value='';
+  document.getElementById('prev').style.display='none';
+  document.getElementById('rc').style.display='none';
+  document.getElementById('ls').style.display='none';
+}
 
 function renderExp(){
   var eid=document.getElementById('sel3').value;
@@ -337,47 +426,146 @@ function renderExp(){
   var c=document.getElementById('expbox');
   if(!emp){c.innerHTML='<p style="color:var(--gray);font-size:13px">เลือกพนักงานเพื่อส่งออกข้อมูล</p>';return;}
   var tx=emp.transactions||[];
+  var ex=emp.extras||{};var de=emp.deducts||{};
   var tot=tx.reduce(function(s,t){return s+t.amount;},0);
-  var out=(emp.salary||0)-(emp.carry||0)-tot;
-  c.innerHTML='<div class="stitle">📊 '+emp.name+'</div><div class="expbox"><div class="exprow"><span style="color:var(--gray)">เงินเดือน</span><span style="font-weight:600">฿'+(emp.salary||0).toLocaleString('th-TH',{minimumFractionDigits:2})+'</span></div><div class="exprow"><span style="color:var(--gray)">ยกมาเดือนก่อน</span><span style="font-weight:600">฿'+(emp.carry||0).toLocaleString('th-TH',{minimumFractionDigits:2})+'</span></div><div class="exprow"><span style="color:var(--gray)">รวมเบิกเดือนนี้</span><span style="font-weight:600;color:var(--blue)">฿'+tot.toLocaleString('th-TH',{minimumFractionDigits:2})+'</span></div><div class="exprow last"><span style="font-weight:600">ยอดคงค้าง</span><span style="font-weight:700;color:'+(out>=0?'var(--green)':'var(--red)')+';">'+(out>=0?'+':'')+'฿'+out.toLocaleString('th-TH',{minimumFractionDigits:2})+'</span></div></div><button class="btn btn-b" onclick="expCSV(\''+eid+'\')">📥 ดาวน์โหลด CSV</button><button class="btn btn-o" onclick="cpTxt(\''+eid+'\')" style="margin-top:8px">📋 คัดลอกข้อความ</button><button class="btn btn-g" onclick="printSlip(\''+eid+'\')" style="margin-top:8px">🧾 ออกสลิปเงินเดือน PDF</button>';
+  var totalExtra=(ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0);
+  var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0);
+  var net=(emp.salary||0)+totalExtra-totalDeduct-(emp.carry||0)-tot;
+  c.innerHTML=
+    '<div class="stitle">📊 '+emp.name+'</div>'+
+    '<div class="expbox">'+
+      '<div class="exprow"><span style="color:var(--gray)">เงินเดือน</span><span style="font-weight:600">฿'+(emp.salary||0).toLocaleString('th-TH',{minimumFractionDigits:2})+'</span></div>'+
+      '<div class="exprow"><span style="color:var(--gray)">รายได้เพิ่มเติม</span><span style="font-weight:600;color:var(--green)">+฿'+totalExtra.toLocaleString('th-TH',{minimumFractionDigits:2})+'</span></div>'+
+      '<div class="exprow"><span style="color:var(--gray)">รายการหัก</span><span style="font-weight:600;color:var(--red)">-฿'+totalDeduct.toLocaleString('th-TH',{minimumFractionDigits:2})+'</span></div>'+
+      '<div class="exprow"><span style="color:var(--gray)">ยกมาเดือนก่อน</span><span style="font-weight:600">฿'+(emp.carry||0).toLocaleString('th-TH',{minimumFractionDigits:2})+'</span></div>'+
+      '<div class="exprow"><span style="color:var(--gray)">รวมเบิกเดือนนี้</span><span style="font-weight:600;color:var(--blue)">฿'+tot.toLocaleString('th-TH',{minimumFractionDigits:2})+'</span></div>'+
+      '<div class="exprow last"><span style="font-weight:600">ยอดสุทธิ</span><span style="font-weight:700;color:'+(net>=0?'var(--green)':'var(--red)')+';">'+(net>=0?'+':'')+'฿'+net.toLocaleString('th-TH',{minimumFractionDigits:2})+'</span></div>'+
+    '</div>'+
+    '<button class="btn btn-b" onclick="expCSV(\''+eid+'\')">📥 ดาวน์โหลด CSV</button>'+
+    '<button class="btn btn-o" onclick="cpTxt(\''+eid+'\')" style="margin-top:8px">📋 คัดลอกข้อความ</button>';
 }
 
-function printSlip(eid){
-  var emp=emps.find(function(e){return e.id===eid;});if(!emp)return;
+function fmt(n){return (n||0).toLocaleString('th-TH',{minimumFractionDigits:2});}
+
+function printSlip(){
+  var eid=document.getElementById('sel3').value;
+  var emp=emps.find(function(e){return e.id===eid;});
+  if(!emp){toast('กรุณาเลือกพนักงานก่อน');return;}
   var tx=emp.transactions||[];
+  var ex=emp.extras||{};var de=emp.deducts||{};
   var tot=tx.reduce(function(s,t){return s+t.amount;},0);
-  var net=(emp.salary||0)-(emp.carry||0)-tot;
-  var now=new Date();
-  var dateStr=now.toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
+  var totalExtra=(ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0);
+  var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0);
+  var net=(emp.salary||0)+totalExtra-totalDeduct-(emp.carry||0)-tot;
+  var today=new Date();
+  var dateStr=today.getDate()+'/'+('0'+(today.getMonth()+1)).slice(-2)+'/'+(today.getFullYear()+543);
+
   var txRows=tx.map(function(t,i){
-    return'<tr><td style="padding:6px 8px;border-bottom:1px solid #eee;">'+(i+1)+'</td><td style="padding:6px 8px;border-bottom:1px solid #eee;">'+t.date+'</td><td style="padding:6px 8px;border-bottom:1px solid #eee;">'+t.bank+'</td><td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;">฿'+t.amount.toLocaleString('th-TH',{minimumFractionDigits:2})+'</td></tr>';
+    return'<tr><td>'+(i+1)+'</td><td>'+t.date+'</td><td>'+t.bank+'</td><td>'+(t.recipient||'-')+'</td><td style="text-align:right">฿'+fmt(t.amount)+'</td></tr>';
   }).join('');
-  var html='<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>สลิปเงินเดือน - '+emp.name+'</title><style>body{font-family:sans-serif;margin:0;padding:20px;color:#0D1B2A;font-size:14px}@media print{body{padding:0}.no-print{display:none}}.slip{max-width:600px;margin:0 auto;border:2px solid #0D1B2A;border-radius:12px;overflow:hidden}.header{background:#0D1B2A;color:#fff;padding:20px;text-align:center}.header h2{margin:0;font-size:20px}.header p{margin:4px 0 0;font-size:12px;color:#94A3B8}.body{padding:20px}.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #E5E7EB}.row:last-child{border:none}.label{color:#6B7280}.value{font-weight:600}table{width:100%;border-collapse:collapse;margin:12px 0}th{background:#F3F4F6;padding:8px;text-align:left;font-size:12px}td{font-size:13px}.total-row{background:#F0F4F8;padding:16px;border-radius:8px;margin-top:12px}.total-row .label{font-size:15px;font-weight:600}.total-row .value{font-size:20px;font-weight:700;color:#1A6FA0}.net-row{background:#0D1B2A;color:#fff;padding:16px;border-radius:8px;margin-top:8px;display:flex;justify-content:space-between;align-items:center}.net-row .label{font-size:15px;font-weight:600}.net-row .value{font-size:22px;font-weight:700;color:#4ADE80}.footer{background:#F3F4F6;padding:12px 20px;text-align:center;font-size:11px;color:#6B7280}.btn-print{display:block;width:100%;max-width:600px;margin:16px auto;padding:14px;background:#1A6FA0;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer}</style></head><body><div class="slip"><div class="header"><h2>💼 สลิปเงินเดือน</h2><p>วันที่ออก: '+dateStr+'</p></div><div class="body"><div class="row"><span class="label">ชื่อพนักงาน</span><span class="value">'+emp.name+'</span></div><div class="row"><span class="label">ธนาคาร / บัญชี</span><span class="value">'+(emp.bank||'-')+'</span></div><div class="row"><span class="label">เงินเดือน</span><span class="value">฿'+(emp.salary||0).toLocaleString('th-TH',{minimumFractionDigits:2})+'</span></div><div class="row"><span class="label">ยอดยกมาเดือนก่อน</span><span class="value">฿'+(emp.carry||0).toLocaleString('th-TH',{minimumFractionDigits:2})+'</span></div>'+(tx.length>0?'<p style="font-weight:600;margin:12px 0 4px">รายการเบิกล่วงหน้า</p><table><thead><tr><th>#</th><th>วันที่</th><th>ธนาคาร</th><th style="text-align:right">จำนวนเงิน</th></tr></thead><tbody>'+txRows+'</tbody></table>':'<p style="color:#6B7280;font-size:13px;margin:12px 0">ไม่มีรายการเบิกล่วงหน้า</p>')+'<div class="total-row"><div style="display:flex;justify-content:space-between;align-items:center"><span class="label">รวมเบิกล่วงหน้า</span><span class="value">฿'+tot.toLocaleString('th-TH',{minimumFractionDigits:2})+'</span></div></div><div class="net-row"><span class="label">ยอดที่ได้รับ</span><span class="value">฿'+Math.max(0,net).toLocaleString('th-TH',{minimumFractionDigits:2})+'</span></div></div><div class="footer">เอกสารนี้ออกโดยระบบเบิกล่วงหน้าอัตโนมัติ</div></div><button class="btn-print no-print" onclick="window.print()">🖨️ พิมพ์ / บันทึก PDF</button></body></html>';
+
+  var html='<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>สลิปเงินเดือน - '+emp.name+'</title><style>';
+  html+='*{margin:0;padding:0;box-sizing:border-box}body{font-family:sans-serif;padding:28px;color:#1a1a1a;max-width:640px;margin:0 auto}';
+  html+='.header{text-align:center;border-bottom:3px solid #0D1B2A;padding-bottom:14px;margin-bottom:18px}';
+  html+='.header h1{font-size:20px;color:#0D1B2A}.header p{font-size:12px;color:#666;margin-top:4px}';
+  html+='.section{border-radius:8px;padding:12px;margin-bottom:14px}';
+  html+='.section.gray{background:#f5f5f5}.section h3{font-size:12px;color:#888;margin-bottom:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}';
+  html+='.two-col{display:grid;grid-template-columns:1fr 1fr;gap:0}';
+  html+='.col{padding:4px 0}.row2{display:flex;justify-content:space-between;padding:4px 0;font-size:13px;border-bottom:1px solid #eee}';
+  html+='.row2:last-child{border-bottom:none}.row2 .lbl{color:#555}.row2 .val{font-weight:600}';
+  html+='.row2.plus .val{color:#16A34A}.row2.minus .val{color:#DC2626}';
+  html+='table{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px}';
+  html+='th{background:#0D1B2A;color:#fff;padding:7px 8px;text-align:left}td{padding:6px 8px;border-bottom:1px solid #eee}';
+  html+='.summary{border:2px solid #0D1B2A;border-radius:8px;padding:14px;margin-bottom:14px}';
+  html+='.srow{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid #eee}';
+  html+='.srow:last-child{border-bottom:none;font-size:16px;font-weight:700;padding-top:10px;margin-top:4px}';
+  html+='.pos{color:#16A34A}.neg{color:#DC2626}';
+  html+='.footer{text-align:center;font-size:11px;color:#aaa;margin-top:16px}';
+  html+='@media print{body{padding:10px}}</style></head><body>';
+
+  html+='<div class="header"><h1>💼 สลิปเงินเดือน</h1><p>วันที่ออกสลิป: '+dateStr+'</p></div>';
+
+  /* ข้อมูลพนักงาน */
+  html+='<div class="section gray"><h3>ข้อมูลพนักงาน</h3>';
+  html+='<div class="row2"><span class="lbl">ชื่อ-นามสกุล</span><span class="val">'+emp.name+'</span></div>';
+  html+='<div class="row2"><span class="lbl">ธนาคาร / บัญชี</span><span class="val">'+(emp.bank||'-')+'</span></div></div>';
+
+  /* รายได้ + หัก แบบ 2 คอลัมน์ */
+  html+='<div class="two-col">';
+  /* คอลัมน์ซ้าย: รายได้ */
+  html+='<div class="section gray" style="margin-right:6px"><h3>รายได้</h3>';
+  html+='<div class="row2"><span class="lbl">เงินเดือน</span><span class="val">฿'+fmt(emp.salary)+'</span></div>';
+  if(ex.ot)   html+='<div class="row2 plus"><span class="lbl">ค่าล่วงเวลา</span><span class="val">+฿'+fmt(ex.ot)+'</span></div>';
+  if(ex.travel)html+='<div class="row2 plus"><span class="lbl">ค่าเดินทาง</span><span class="val">+฿'+fmt(ex.travel)+'</span></div>';
+  if(ex.phone) html+='<div class="row2 plus"><span class="lbl">ค่าโทร</span><span class="val">+฿'+fmt(ex.phone)+'</span></div>';
+  if(ex.other) html+='<div class="row2 plus"><span class="lbl">รายรับอื่นๆ</span><span class="val">+฿'+fmt(ex.other)+'</span></div>';
+  html+='<div class="row2"><span class="lbl" style="font-weight:600">รวมรายได้</span><span class="val">฿'+fmt((emp.salary||0)+totalExtra)+'</span></div>';
+  html+='</div>';
+  /* คอลัมน์ขวา: หัก */
+  html+='<div class="section gray" style="margin-left:6px"><h3>รายการหัก</h3>';
+  if(de.absent)   html+='<div class="row2 minus"><span class="lbl">ขาด/ลา/มาสาย</span><span class="val">-฿'+fmt(de.absent)+'</span></div>';
+  if(de.insurance)html+='<div class="row2 minus"><span class="lbl">หักเงินประกัน</span><span class="val">-฿'+fmt(de.insurance)+'</span></div>';
+  if(de.social)   html+='<div class="row2 minus"><span class="lbl">ประกันสังคม</span><span class="val">-฿'+fmt(de.social)+'</span></div>';
+  if(emp.carry)   html+='<div class="row2 minus"><span class="lbl">ยกมาเดือนก่อน</span><span class="val">-฿'+fmt(emp.carry)+'</span></div>';
+  if(tot)         html+='<div class="row2 minus"><span class="lbl">เบิกล่วงหน้า</span><span class="val">-฿'+fmt(tot)+'</span></div>';
+  html+='<div class="row2"><span class="lbl" style="font-weight:600">รวมหัก</span><span class="val neg">-฿'+fmt(totalDeduct+(emp.carry||0)+tot)+'</span></div>';
+  html+='</div></div>';
+
+  /* รายการเบิกล่วงหน้า */
+  if(tx.length>0){
+    html+='<div class="section gray"><h3>รายการเบิกล่วงหน้า</h3>';
+    html+='<table><tr><th>#</th><th>วันที่</th><th>ธนาคาร</th><th>ผู้รับ</th><th style="text-align:right">จำนวนเงิน</th></tr>'+txRows+'</table></div>';
+  }
+
+  /* ยอดสุทธิ */
+  html+='<div class="summary">';
+  html+='<div class="srow"><span>รายได้รวม</span><span>฿'+fmt((emp.salary||0)+totalExtra)+'</span></div>';
+  html+='<div class="srow"><span>รายการหักรวม</span><span class="neg">-฿'+fmt(totalDeduct+(emp.carry||0)+tot)+'</span></div>';
+  html+='<div class="srow"><span>ยอดสุทธิที่ได้รับ</span><span class="'+(net>=0?'pos':'neg')+'">'+(net>=0?'+':'')+'฿'+fmt(net)+'</span></div>';
+  html+='</div>';
+
+  html+='<div class="footer"><p>เอกสารนี้ออกโดยระบบเบิกล่วงหน้า</p></div>';
+  html+='<script>window.onload=function(){window.print();}<\/script></body></html>';
+
   var w=window.open('','_blank');
-  w.document.write(html);
-  w.document.close();
+  if(w){w.document.write(html);w.document.close();}
+  else{toast('⚠️ กรุณาอนุญาต Popup ในเบราว์เซอร์ก่อนครับ');}
 }
 
 function expCSV(eid){
   var emp=emps.find(function(e){return e.id===eid;});if(!emp)return;
   var tx=emp.transactions||[];
-  var rows=[['#','วันที่โอน','ธนาคาร','ผู้โอน','จำนวนเงิน','เลขอ้างอิง']].concat(tx.map(function(t,i){return[i+1,t.date,t.bank,t.sender,t.amount,t.ref];}));
+  var ex=emp.extras||{};var de=emp.deducts||{};
+  var rows=[['#','วันที่โอน','ธนาคาร','ผู้รับโอน','จำนวนเงิน','เลขอ้างอิง','ลิงก์สลิป']].concat(
+    tx.map(function(t,i){return[i+1,t.date,t.bank,t.recipient||'',t.amount,t.ref,t.imgUrl||''];}));
+  rows.push([]);
+  rows.push(['รายได้เพิ่ม','ค่าล่วงเวลา','ค่าเดินทาง','ค่าโทร','อื่นๆ']);
+  rows.push(['',ex.ot||0,ex.travel||0,ex.phone||0,ex.other||0]);
+  rows.push(['รายการหัก','ขาด/ลา/มาสาย','หักประกัน','ประกันสังคม']);
+  rows.push(['',de.absent||0,de.insurance||0,de.social||0]);
   var csv=rows.map(function(r){return r.join(',');}).join('\n');
   var a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));a.download='เบิกล่วงหน้า_'+emp.name+'.csv';a.click();
 }
 
 function cpTxt(eid){
   var emp=emps.find(function(e){return e.id===eid;});if(!emp)return;
-  var tx=emp.transactions||[];var tot=tx.reduce(function(s,t){return s+t.amount;},0);var out=(emp.salary||0)-(emp.carry||0)-tot;
-  var t='รายการเบิกล่วงหน้า — '+emp.name+'\n'+'='.repeat(34)+'\n';
-  tx.forEach(function(x,i){t+=(i+1)+'. '+x.date+' | '+x.bank+' | ฿'+x.amount.toLocaleString('th-TH')+'\n';});
-  t+='='.repeat(34)+'\nรวมเบิก: ฿'+tot.toLocaleString('th-TH')+'\nยอดคงค้าง: '+(out>=0?'+':'')+'฿'+out.toLocaleString('th-TH')+'\n';
+  var tx=emp.transactions||[];var ex=emp.extras||{};var de=emp.deducts||{};
+  var tot=tx.reduce(function(s,t){return s+t.amount;},0);
+  var totalExtra=(ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0);
+  var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0);
+  var net=(emp.salary||0)+totalExtra-totalDeduct-(emp.carry||0)-tot;
+  var t='รายการเบิกล่วงหน้า — '+emp.name+'\n'+'='.repeat(36)+'\n';
+  tx.forEach(function(x,i){t+=(i+1)+'. '+x.date+' | '+x.bank+' | ผู้รับ: '+(x.recipient||'-')+' | ฿'+x.amount.toLocaleString('th-TH')+'\n';});
+  t+='='.repeat(36)+'\n';
+  t+='เงินเดือน: ฿'+(emp.salary||0).toLocaleString('th-TH')+'\n';
+  if(totalExtra)t+='รายได้เพิ่ม: +฿'+totalExtra.toLocaleString('th-TH')+'\n';
+  if(totalDeduct)t+='รายการหัก: -฿'+totalDeduct.toLocaleString('th-TH')+'\n';
+  t+='รวมเบิก: ฿'+tot.toLocaleString('th-TH')+'\n';
+  t+='ยอดสุทธิ: '+(net>=0?'+':'')+'฿'+net.toLocaleString('th-TH')+'\n';
   navigator.clipboard.writeText(t).then(function(){toast('📋 คัดลอกแล้ว');});
 }
 
 function toast(msg){var t=document.createElement('div');t.className='toast';t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.remove();},2500);}
-
-loadEmps();
 </script>
 </body>
 </html>
