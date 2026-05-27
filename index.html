@@ -2249,31 +2249,51 @@ function ldbLoadKey() {
   _ldbEditDoc = null;
   document.getElementById('ldbEditorPanel').style.display = 'none';
 
-  var raw = localStorage.getItem(_ldbKey);
-  if(!raw) { _ldbAll = []; ldbRender(); document.getElementById('ldbCount').textContent = '0 รายการ (ไม่มี key นี้)'; return; }
-
-  try {
-    var parsed = JSON.parse(raw);
-    if(Array.isArray(parsed)) {
-      _ldbAll = parsed.map(function(d,i){
-        if(typeof d !== 'object' || d === null) return {_idx:i, value:d};
-        var obj = Object.assign({}, d);
-        if(!obj._idx && obj._idx !== 0) obj._idx = i;
-        return obj;
-      });
-    } else if(typeof parsed === 'object') {
-      _ldbAll = Object.entries(parsed).map(function(kv){
-        return Object.assign({_idx: kv[0]}, typeof kv[1]==='object'?kv[1]:{value:kv[1]});
-      });
-    } else {
-      _ldbAll = [{_idx:0, value:parsed}];
-    }
-    ldbFilter();
-  } catch(e) {
-    document.getElementById('ldbCount').textContent = '❌ JSON ผิด: '+e.message;
-    _ldbAll = [];
-    ldbRender();
+  // อ่านจาก global variables ก่อน (ข้อมูล live ใน memory)
+  var memData = null;
+  if(_ldbKey === 'advance_requests_local' && typeof requests !== 'undefined') memData = requests;
+  else if(_ldbKey === 'advance_records_local' && typeof advanceRecords !== 'undefined') memData = advanceRecords;
+  else if(_ldbKey === 'advance_tracker_v2' && typeof emps !== 'undefined') memData = emps;
+  else if(_ldbKey === 'advance_ledger_local' && typeof ledger !== 'undefined') memData = ledger;
+  else if(_ldbKey === 'advance_month_locks' && typeof monthLocks !== 'undefined') {
+    // monthLocks เป็น object ไม่ใช่ array
+    memData = Object.entries(monthLocks).map(function(kv){
+      return Object.assign({id:kv[0],monthKey:kv[0]}, typeof kv[1]==='object'?kv[1]:{});
+    });
   }
+
+  var sourceData = memData;
+
+  // ถ้าไม่มีใน memory ให้อ่านจาก localStorage
+  if(!sourceData || sourceData.length === 0) {
+    var raw = localStorage.getItem(_ldbKey);
+    if(!raw) {
+      _ldbAll = [];
+      ldbRender();
+      document.getElementById('ldbCount').textContent = '0 รายการ (ไม่มีข้อมูล)';
+      return;
+    }
+    try {
+      var parsed = JSON.parse(raw);
+      sourceData = Array.isArray(parsed) ? parsed :
+        typeof parsed === 'object' ? Object.entries(parsed).map(function(kv){
+          return Object.assign({id:kv[0]}, typeof kv[1]==='object'?kv[1]:{value:kv[1]});
+        }) : [parsed];
+    } catch(e) {
+      document.getElementById('ldbCount').textContent = '❌ JSON ผิด: '+e.message;
+      _ldbAll = []; ldbRender(); return;
+    }
+  }
+
+  _ldbAll = sourceData.map(function(d,i){
+    if(typeof d !== 'object' || d === null) return {_idx:i, value:d};
+    var obj = Object.assign({}, d);
+    obj._idx = i; // ใช้ position เสมอ
+    return obj;
+  });
+
+  document.getElementById('ldbCount').textContent = _ldbAll.length + ' รายการ (จาก memory)';
+  ldbFilter();
 }
 
 function ldbFilter() {
@@ -2431,21 +2451,37 @@ function ldbDeleteSelected() {
 }
 
 function ldbDoDelete(idxList) {
-  var arr = getLsArr();
   var strList = idxList.map(String);
-  // ลบโดยใช้ index (position ใน array)
-  arr = arr.filter(function(d,i){
-    return !strList.includes(String(d._idx!==undefined?d._idx:i));
-  });
-  // ลบ _idx ออกก่อน save
-  arr = arr.map(function(d){ var c=Object.assign({},d); delete c._idx; return c; });
-  saveLsArr(arr);
-  // update local state
+
+  // หา id ของรายการที่จะลบ
+  var toDeleteIds = _ldbAll
+    .filter(function(d,i){ return strList.includes(String(d._idx!==undefined?d._idx:i)); })
+    .map(function(d){ return d.id||d._id||null; })
+    .filter(Boolean);
+
+  // 1. ลบจาก global memory variables
+  if(_ldbKey === 'advance_requests_local' && typeof requests !== 'undefined') {
+    requests = requests.filter(function(r){ return !toDeleteIds.includes(r.id); });
+    try{ localStorage.setItem(LOCAL_REQ, JSON.stringify(requests)); }catch(e){}
+  } else if(_ldbKey === 'advance_records_local' && typeof advanceRecords !== 'undefined') {
+    advanceRecords = advanceRecords.filter(function(r){ return !toDeleteIds.includes(r.id); });
+    try{ localStorage.setItem(LOCAL_ADVREC, JSON.stringify(advanceRecords)); }catch(e){}
+  } else if(_ldbKey === 'advance_tracker_v2' && typeof emps !== 'undefined') {
+    emps = emps.filter(function(e){ return !toDeleteIds.includes(e.id); });
+    try{ saveLocal(); }catch(e){}
+  } else {
+    // fallback: แก้ localStorage โดยตรง
+    var arr = getLsArr();
+    arr = arr.filter(function(d,i){ return !strList.includes(String(i)); });
+    arr = arr.map(function(d){ var c=Object.assign({},d); delete c._idx; return c; });
+    saveLsArr(arr);
+  }
+
+  // 2. update local display state
   _ldbAll = _ldbAll.filter(function(d,i){ return !strList.includes(String(d._idx!==undefined?d._idx:i)); });
-  // re-index
   _ldbAll = _ldbAll.map(function(d,i){ return Object.assign({},d,{_idx:i}); });
   ldbFilter();
-  toast('🗑 ลบแล้ว '+idxList.length+' รายการ — reload หน้าจอเพื่อให้มีผล');
+  toast('🗑 ลบแล้ว '+idxList.length+' รายการ');
 }
 
 function getLsArr() {
