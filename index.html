@@ -159,6 +159,7 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
   <button class="tb" onclick="goTab('payroll',this)">💰 Payroll</button>
   <button class="tb" onclick="goTab('export',this)">📤 ส่งออก</button>
   <button class="tb" onclick="goTab('settings',this)">⚙️ ตั้งค่า</button>
+  <button class="tb" onclick="goTab('localdb',this)">🗃️ LocalDB</button>
 </div>
 
 <!-- ── DASHBOARD ── -->
@@ -1272,6 +1273,7 @@ function goTab(t,btn){
   if(btn)btn.classList.add('on');
   if(t==='export')renderExp();
   if(t==='settings')renderSettings();
+  if(t==='localdb')ldbLoadKey();
   if(t==='payroll')renderPayroll();
 }
 
@@ -2098,7 +2100,49 @@ function printSlip(eidOverride){
   html+='<div class="srow"><span>รายการหักรวม</span><span class="neg">-฿'+fmt(totalDeduct+moCarry+totNet)+'</span></div>';
   html+='<div class="srow"><span>ยอดสุทธิที่ได้รับ</span><span class="'+(net>=0?'pos':'neg')+'">'+(net>=0?'+':'')+'฿'+fmt(net)+'</span></div></div>';
   html+='<div class="footer"><p>เอกสารนี้ออกโดยระบบเบิกล่วงหน้า · '+BUILD_LABEL+'</p></div>';
-  html+='<script>window.onload=function(){window.print();}<\/script></body></html>';
+  html+='<script>window.onload=function(){window.print();}<\/script>
+<!-- ── LOCAL DB EDITOR ── -->
+<div class="pg" id="pg-localdb">
+  <div class="set-card" style="padding:0;overflow:hidden;max-width:100%">
+    <div style="background:#1e293b;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-weight:700;color:#f1f5f9;font-size:14px">🗃️ LocalStorage Editor</span>
+      <select id="ldbKeySelect" onchange="ldbLoadKey()" style="background:#0f172a;border:1px solid #475569;color:#e2e8f0;border-radius:5px;padding:4px 10px;font-size:12px">
+        <option value="advance_requests_local">⏩ advance_requests</option>
+        <option value="advance_records_local">📄 advance_records</option>
+        <option value="advance_tracker_v2">👤 employees</option>
+        <option value="advance_ledger_local">📒 advance_ledger</option>
+        <option value="advance_month_locks">🔒 month_locks</option>
+        <option value="advance_audit_logs">📝 audit_logs</option>
+        <option value="advance_unlock_logs">🔓 unlock_logs</option>
+      </select>
+      <input id="ldbSearch" placeholder="🔍 ค้นหา..." oninput="ldbFilter()" style="background:#0f172a;border:1px solid #475569;color:#e2e8f0;border-radius:5px;padding:4px 10px;font-size:12px;width:180px">
+      <span id="ldbCount" style="font-size:11px;color:#64748b"></span>
+      <button onclick="ldbLoadKey()" style="background:#166534;color:#bbf7d0;border:none;border-radius:5px;padding:4px 10px;font-size:12px;cursor:pointer;font-weight:600;margin-left:auto">🔄 Reload</button>
+      <button onclick="ldbDeleteSelected()" id="ldbDelSelBtn" disabled style="background:#7f1d1d;color:#fca5a5;border:none;border-radius:5px;padding:4px 10px;font-size:12px;cursor:pointer;font-weight:600">🗑 ลบที่เลือก (<span id="ldbSelCount">0</span>)</button>
+    </div>
+    <div style="overflow:auto;max-height:calc(100vh - 220px)">
+      <table id="ldbTable" style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead id="ldbThead"></thead>
+        <tbody id="ldbTbody"></tbody>
+      </table>
+    </div>
+    <div style="padding:6px 14px;background:#0f172a;font-size:11px;color:#475569;border-top:1px solid #1e293b">
+      ⚠️ การลบจะแก้ไข localStorage ทันที — reload หน้าจอเพื่อให้มีผล
+    </div>
+  </div>
+
+  <!-- Editor panel -->
+  <div id="ldbEditorPanel" style="display:none;margin-top:12px" class="set-card">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-weight:700;font-size:13px" id="ldbEditorTitle">แก้ไข</span>
+      <button onclick="ldbCloseEditor()" style="margin-left:auto;background:#334155;color:#cbd5e1;border:none;border-radius:5px;padding:3px 10px;font-size:12px;cursor:pointer">✕ ปิด</button>
+      <button onclick="ldbSaveDoc()" style="background:#166534;color:#bbf7d0;border:none;border-radius:5px;padding:3px 12px;font-size:12px;cursor:pointer;font-weight:600">💾 บันทึก</button>
+      <button onclick="ldbDeleteDoc()" style="background:#7f1d1d;color:#fca5a5;border:none;border-radius:5px;padding:3px 10px;font-size:12px;cursor:pointer;font-weight:600">🗑 ลบ</button>
+    </div>
+    <div id="ldbEditorFields" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px"></div>
+  </div>
+</div>
+</body></html>';
   var w=window.open('','_blank');
   if(w){w.document.write(html);w.document.close();}
   else toast('⚠️ กรุณาอนุญาต Popup ในเบราว์เซอร์');
@@ -2181,6 +2225,240 @@ window.onload=function(){
     vb.title='Advance Tracker '+BUILD_LABEL+'\nBuild: '+BUILD_TIME+'\nFirebase: advance-tracker-cadf5';
   }
 };
+
+// ─── LOCAL DB EDITOR ──────────────────────────────────────────────────────────
+var _ldbKey = 'advance_requests_local';
+var _ldbAll = [];
+var _ldbFiltered = [];
+var _ldbSelected = new Set();
+var _ldbEditDoc = null;
+
+var LDB_COLS = {
+  advance_requests_local: ['id','date','transferDate','employeeName','amount','category','status','syncStatus','_localOnly'],
+  advance_records_local:  ['id','date','employeeName','amount','category','status','monthKey'],
+  advance_tracker_v2:     ['id','name','employeeCode','dept','limit','active'],
+  advance_ledger_local:   ['id','employeeId','employeeName','monthKey','totalAmount'],
+  advance_month_locks:    ['id','monthKey','locked','lockedAt'],
+  advance_audit_logs:     ['id','action','at','monthKey'],
+  advance_unlock_logs:    ['id','action','at','reason'],
+};
+
+function ldbLoadKey() {
+  _ldbKey = document.getElementById('ldbKeySelect').value;
+  _ldbSelected.clear();
+  _ldbEditDoc = null;
+  document.getElementById('ldbEditorPanel').style.display = 'none';
+
+  var raw = localStorage.getItem(_ldbKey);
+  if(!raw) { _ldbAll = []; ldbRender(); document.getElementById('ldbCount').textContent = '0 รายการ (ไม่มี key นี้)'; return; }
+
+  try {
+    var parsed = JSON.parse(raw);
+    if(Array.isArray(parsed)) {
+      _ldbAll = parsed.map(function(d,i){
+        if(typeof d !== 'object' || d === null) return {_idx:i, value:d};
+        var obj = Object.assign({}, d);
+        if(!obj._idx && obj._idx !== 0) obj._idx = i;
+        return obj;
+      });
+    } else if(typeof parsed === 'object') {
+      _ldbAll = Object.entries(parsed).map(function(kv){
+        return Object.assign({_idx: kv[0]}, typeof kv[1]==='object'?kv[1]:{value:kv[1]});
+      });
+    } else {
+      _ldbAll = [{_idx:0, value:parsed}];
+    }
+    ldbFilter();
+  } catch(e) {
+    document.getElementById('ldbCount').textContent = '❌ JSON ผิด: '+e.message;
+    _ldbAll = [];
+    ldbRender();
+  }
+}
+
+function ldbFilter() {
+  var q = (document.getElementById('ldbSearch').value||'').toLowerCase();
+  _ldbFiltered = q ? _ldbAll.filter(function(d){ return JSON.stringify(d).toLowerCase().includes(q); }) : _ldbAll.slice();
+  document.getElementById('ldbCount').textContent = _ldbFiltered.length + ' / ' + _ldbAll.length + ' รายการ';
+  ldbRender();
+}
+
+function ldbRender() {
+  var cols = LDB_COLS[_ldbKey] || Object.keys(_ldbAll[0]||{}).filter(function(k){return k!=='_idx';}).slice(0,8);
+  // thead
+  var th = '<tr style="background:#0f172a"><th style="width:28px;padding:6px 8px"><input type="checkbox" id="ldbChkAll" onchange="ldbToggleAll()"></th>';
+  th += '<th style="padding:6px 8px;color:#64748b;font-size:11px">#</th>';
+  cols.forEach(function(c){ th += '<th style="padding:6px 8px;color:#94a3b8;font-weight:700;white-space:nowrap;border-bottom:2px solid #334155">'+c+'</th>'; });
+  th += '<th style="padding:6px 8px;width:50px"></th></tr>';
+  document.getElementById('ldbThead').innerHTML = th;
+
+  // tbody
+  if(!_ldbFiltered.length) {
+    document.getElementById('ldbTbody').innerHTML = '<tr><td colspan="'+(cols.length+3)+'" style="text-align:center;padding:24px;color:#475569">ไม่มีข้อมูล</td></tr>';
+    return;
+  }
+
+  var rows = _ldbFiltered.map(function(d, i){
+    var idx = d._idx !== undefined ? d._idx : i;
+    var sel = _ldbSelected.has(String(idx));
+    var isEdit = _ldbEditDoc && _ldbEditDoc._idx === idx;
+    var bg = isEdit ? 'background:#1e3a5f' : sel ? 'background:#1a2a3a' : '';
+    var row = '<tr style="border-bottom:1px solid #1a2535;cursor:pointer;'+bg+'" onclick="ldbOpenEditor('+JSON.stringify(idx)+')">';
+    row += '<td style="padding:5px 8px;text-align:center" onclick="event.stopPropagation()"><input type="checkbox" '+(sel?'checked':'')+' onchange="ldbToggleSel('+JSON.stringify(idx)+')"></td>';
+    row += '<td style="padding:5px 8px;color:#475569;font-size:10px">'+(i+1)+'</td>';
+    cols.forEach(function(c){
+      var v = d[c];
+      if(v === undefined || v === null){ row += '<td style="padding:5px 8px;color:#2d3a4a">—</td>'; return; }
+      if(c==='status'){
+        var sc = v==='approved'?'#22c55e':v==='rejected'?'#ef4444':v==='pending_approval'?'#f59e0b':'#94a3b8';
+        row += '<td style="padding:5px 8px;color:'+sc+';font-weight:600;font-size:11px">'+v+'</td>'; return;
+      }
+      if(c==='syncStatus'){
+        var sc2 = v==='linked'?'#22c55e':v==='error'?'#ef4444':'#f59e0b';
+        row += '<td style="padding:5px 8px"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:'+sc2+';margin-right:4px"></span><span style="color:'+sc2+';font-size:11px">'+v+'</span></td>'; return;
+      }
+      if(c==='amount'){
+        row += '<td style="padding:5px 8px;font-weight:700;color:#4ade80;white-space:nowrap">฿'+Number(v).toLocaleString('th-TH',{minimumFractionDigits:2})+'</td>'; return;
+      }
+      if(c==='_localOnly'){
+        row += '<td style="padding:5px 8px"><span style="font-size:10px;color:'+(v?'#f59e0b':'#22c55e')+'">'+(v?'local':'synced')+'</span></td>'; return;
+      }
+      if(typeof v==='object'){ row += '<td style="padding:5px 8px;color:#475569;font-size:10px">[obj]</td>'; return; }
+      var s = String(v);
+      row += '<td style="padding:5px 8px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+s.replace(/"/g,"&quot;")+'">'+( s.length>28?s.slice(0,28)+'…':s)+'</td>';
+    });
+    row += '<td style="padding:5px 8px"><button onclick="event.stopPropagation();ldbDeleteOne('+JSON.stringify(idx)+')" style="background:#450a0a;color:#fca5a5;border:1px solid #7f1d1d;border-radius:4px;padding:2px 7px;font-size:11px;cursor:pointer">🗑</button></td>';
+    row += '</tr>';
+    return row;
+  }).join('');
+  document.getElementById('ldbTbody').innerHTML = rows;
+  ldbUpdateSelUI();
+}
+
+function ldbToggleSel(idx) {
+  var k = String(idx);
+  if(_ldbSelected.has(k)) _ldbSelected.delete(k); else _ldbSelected.add(k);
+  ldbUpdateSelUI(); ldbRender();
+}
+
+function ldbToggleAll() {
+  if(_ldbSelected.size === _ldbFiltered.length) _ldbSelected.clear();
+  else _ldbFiltered.forEach(function(d,i){ _ldbSelected.add(String(d._idx!==undefined?d._idx:i)); });
+  ldbUpdateSelUI(); ldbRender();
+}
+
+function ldbUpdateSelUI() {
+  var n = _ldbSelected.size;
+  document.getElementById('ldbSelCount').textContent = n;
+  document.getElementById('ldbDelSelBtn').disabled = n === 0;
+}
+
+function ldbOpenEditor(idx) {
+  var doc = _ldbAll.find(function(d,i){ return String(d._idx!==undefined?d._idx:i) === String(idx); });
+  if(!doc) return;
+  _ldbEditDoc = doc;
+  document.getElementById('ldbEditorTitle').textContent = '✏️ แก้ไข — id: '+(doc.id||String(idx));
+  document.getElementById('ldbEditorPanel').style.display = 'block';
+
+  var skip = ['_idx'];
+  var priority = ['id','date','transferDate','employeeName','employeeCode','amount','category','status','syncStatus','monthKey','_localOnly'];
+  var keys = [...new Set([...priority,...Object.keys(doc)])].filter(function(k){ return !skip.includes(k) && k in doc; });
+
+  var html = keys.map(function(k){
+    var v = doc[k];
+    if(typeof v==='object'&&v!==null) v=JSON.stringify(v); else v=(v===undefined||v===null)?'':String(v);
+    var isP = priority.includes(k);
+    var tag = v.length>60 ? 'textarea' : 'input';
+    return '<div><div style="font-size:10px;color:'+(isP?'#93c5fd':'#64748b')+';font-weight:700;margin-bottom:2px;text-transform:uppercase">'+k+'</div>'
+      +'<'+tag+' id="lef_'+k+'" style="background:#0f172a;border:1px solid #334155;color:#e2e8f0;border-radius:5px;padding:4px 7px;font-size:12px;width:100%;'+(tag==='textarea'?'height:55px;resize:vertical':'')+'resize:none" '+(tag==='input'?'value="'+v.replace(/"/g,'&quot;')+'"':'')+' oninput="this.style.borderColor='#f59e0b'">'+( tag==='textarea'?v.replace(/</g,'&lt;'):'')+'</'+tag+'></div>';
+  }).join('');
+  document.getElementById('ldbEditorFields').innerHTML = html;
+  ldbRender();
+}
+
+function ldbCloseEditor() {
+  _ldbEditDoc = null;
+  document.getElementById('ldbEditorPanel').style.display = 'none';
+  ldbRender();
+}
+
+function ldbSaveDoc() {
+  if(!_ldbEditDoc) return;
+  var updated = Object.assign({}, _ldbEditDoc);
+  Object.keys(_ldbEditDoc).filter(function(k){return k!=='_idx';}).forEach(function(k){
+    var el = document.getElementById('lef_'+k); if(!el) return;
+    var raw = el.value, orig = _ldbEditDoc[k];
+    if(typeof orig==='number') updated[k]=Number(raw)||0;
+    else if(typeof orig==='boolean') updated[k]=raw==='true';
+    else { try{updated[k]=JSON.parse(raw);}catch(_){updated[k]=raw;} }
+  });
+  // save back to array
+  var arr = getLsArr();
+  var idx = _ldbEditDoc._idx;
+  if(typeof idx === 'number') arr[idx] = Object.assign({}, updated);
+  else { var i=arr.findIndex(function(d){return d.id===_ldbEditDoc.id;}); if(i>=0) arr[i]=Object.assign({},arr[i],updated); }
+  saveLsArr(arr);
+  // update local state
+  var ai = _ldbAll.findIndex(function(d){ return d._idx===_ldbEditDoc._idx; });
+  if(ai>=0) _ldbAll[ai] = updated;
+  _ldbEditDoc = updated;
+  ldbFilter();
+  toast('💾 บันทึกแล้ว — reload หน้าจอเพื่อให้มีผล');
+}
+
+function ldbDeleteDoc() {
+  if(!_ldbEditDoc) return;
+  var label = _ldbEditDoc.id || _ldbEditDoc.employeeName || String(_ldbEditDoc._idx);
+  if(!confirm('ยืนยันลบ?\n\n'+label+'\n\nจะลบออกจาก localStorage ทันที')) return;
+  ldbDoDelete([_ldbEditDoc._idx]);
+  ldbCloseEditor();
+}
+
+function ldbDeleteOne(idx) {
+  var doc = _ldbAll.find(function(d,i){ return String(d._idx!==undefined?d._idx:i)===String(idx); });
+  var label = doc ? (doc.id||doc.employeeName||String(idx)) : String(idx);
+  if(!confirm('ยืนยันลบ?\n\n'+label)) return;
+  ldbDoDelete([idx]);
+  if(_ldbEditDoc && String(_ldbEditDoc._idx)===String(idx)) ldbCloseEditor();
+}
+
+function ldbDeleteSelected() {
+  if(!_ldbSelected.size) return;
+  if(!confirm('ยืนยันลบ '+_ldbSelected.size+' รายการ?\n\nไม่สามารถกู้คืนได้!')) return;
+  ldbDoDelete([..._ldbSelected]);
+  _ldbSelected.clear();
+  ldbCloseEditor();
+}
+
+function ldbDoDelete(idxList) {
+  var arr = getLsArr();
+  var strList = idxList.map(String);
+  // ลบโดยใช้ index (position ใน array)
+  arr = arr.filter(function(d,i){
+    return !strList.includes(String(d._idx!==undefined?d._idx:i));
+  });
+  // ลบ _idx ออกก่อน save
+  arr = arr.map(function(d){ var c=Object.assign({},d); delete c._idx; return c; });
+  saveLsArr(arr);
+  // update local state
+  _ldbAll = _ldbAll.filter(function(d,i){ return !strList.includes(String(d._idx!==undefined?d._idx:i)); });
+  // re-index
+  _ldbAll = _ldbAll.map(function(d,i){ return Object.assign({},d,{_idx:i}); });
+  ldbFilter();
+  toast('🗑 ลบแล้ว '+idxList.length+' รายการ — reload หน้าจอเพื่อให้มีผล');
+}
+
+function getLsArr() {
+  try{
+    var raw=localStorage.getItem(_ldbKey); if(!raw) return [];
+    var p=JSON.parse(raw); return Array.isArray(p)?p:[];
+  }catch(e){return [];}
+}
+
+function saveLsArr(arr) {
+  localStorage.setItem(_ldbKey, JSON.stringify(arr));
+}
+
 </script>
 </body>
 </html>
