@@ -320,8 +320,8 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
 
 <script>
 // ── VERSION ───────────────────────────────────────────────────────────────────
-var BUILD_TIME = "2026-05-28 17:00";
-var BUILD_LABEL = "v3.15";
+var BUILD_TIME = "2026-05-28 18:00";
+var BUILD_LABEL = "v3.16";
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 var db, emps=[], requests=[], ledger=[], curId=null, imgB64=null, imgMime="image/jpeg", isOnline=false;
@@ -924,7 +924,10 @@ async function loadAdvanceByMonth(monthKey){
           ocrText:r.ocrText||'',
           ocrConfidence:r.ocrConfidence||0,
           monthKey:r.monthKey||monthKey,
-          status:'approved',
+          status:(function(rid){
+            var ex=requests.find(function(rq){return rq.id===rid;});
+            return ex?ex.status:'approved';
+          }(r.id)),
           syncStatus:r.syncStatus||'linked',
           createdAt:r.createdAt||'',
           _fromMonthly:true,
