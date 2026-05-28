@@ -320,8 +320,8 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
 
 <script>
 // ── VERSION ───────────────────────────────────────────────────────────────────
-var BUILD_TIME = "2026-05-28 15:00";
-var BUILD_LABEL = "v3.14";
+var BUILD_TIME = "2026-05-28 17:00";
+var BUILD_LABEL = "v3.15";
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 var db, emps=[], requests=[], ledger=[], curId=null, imgB64=null, imgMime="image/jpeg", isOnline=false;
@@ -748,7 +748,12 @@ async function saveAdvRecMo(){
   if(!assertMonthEditable(mk)) return;
 
   if(_advRecType==='advance'){
-    // สร้าง advance_requests (ใช้ระบบเดิม + show ใน transaction list)
+    // Finance App = source of truth — ห้ามบันทึกเบิกจาก Advance Tracker โดยตรง
+    closeAdvRecMo();
+    alert('⚠️ กรุณาบันทึกการเบิกล่วงหน้าผ่าน Finance App เท่านั้น\n\nเพื่อให้ข้อมูลบัญชีและยอดเงินตรงกันทุกระบบ');
+    return;
+    // === ปิดการใช้งาน: code ด้านล่างไม่ถูกเรียกอีกต่อไป ===
+    // eslint-disable-next-line no-unreachable
     var cat=document.getElementById('mo-advrec-cat').value||'เบิกล่วงหน้าเงินเดือน';
     var refNo=(document.getElementById('mo-advrec-ref').value||'').trim();
     var slipUrl=(document.getElementById('mo-advrec-slip').value||'').trim();
@@ -1631,7 +1636,7 @@ function renderDash(){
       :''
     )
     +'<div class="adv-act-btns">'
-      +'<button class="adv-act-btn" onclick="openAdvRecMo(\'advance\',\''+emp.id+'\')" style="background:#FEF3C7;color:#92400E'+((isMonthLocked(curMo)||isClosed)?';opacity:.4;pointer-events:none':'')+'">➕ บันทึกเบิก</button>'
+      +'<button class="adv-act-btn" disabled title="บันทึกเบิกต้องทำใน Finance App เท่านั้น" style="background:#F3F4F6;color:#9CA3AF;opacity:.5;cursor:not-allowed">➕ บันทึกเบิก (ใช้ Finance App)</button>'
       +'<button class="adv-act-btn" onclick="openAdvRecMo(\'repayment\',\''+emp.id+'\')" style="background:var(--green-bg);color:#166534'+((isMonthLocked(curMo)||isClosed)?';opacity:.4;pointer-events:none':'')+'">↩ หักคืน</button>'
       +'<button class="adv-act-btn" onclick="openAdvRecMo(\'clear\',\''+emp.id+'\')" style="background:#DBEAFE;color:#1E40AF'+((isMonthLocked(curMo)||isClosed)?';opacity:.4;pointer-events:none':'')+'">✅ เคลียร์ยอด</button>'
       +'<button class="adv-act-btn" onclick="openHistoryMo(\''+emp.id+'\')" style="background:#F3F4F6;color:var(--navy)">📋 ประวัติ</button>'
@@ -2000,6 +2005,11 @@ async function analyzeSlip(){
 }
 
 async function saveTx(){
+  // Finance App = source of truth — ห้ามบันทึกเบิกจาก tab อัพโหลดสลิปโดยตรง
+  alert('⚠️ กรุณาบันทึกการเบิกล่วงหน้าผ่าน Finance App เท่านั้น\n\nเพื่อให้ข้อมูลบัญชีและยอดเงินตรงกันทุกระบบ');
+  return;
+  // === ปิดการใช้งาน: code ด้านล่างไม่ถูกเรียกอีกต่อไป ===
+  // eslint-disable-next-line no-unreachable
   var eid=document.getElementById('sel2').value;
   var emp=emps.find(function(e){return e.id===eid;});
   if(!emp){toast('กรุณาเลือกพนักงานก่อน');return;}
