@@ -1311,7 +1311,7 @@ function renderPayroll(){
   var rows=emps.map(function(emp){
     var allTx=getMergedTx(emp);
     var moTx=allTx.filter(function(t){ return (t.date||'').startsWith(curMo); });
-    var approved=moTx.filter(function(t){return (t.status==='approved'||t._legacy)&&t.status!=='rejected';});
+    var approved=moTx.filter(function(t){return !t._fromReq||(t._fromReq&&t.status==='approved');});
     var pending=moTx.filter(function(t){return t.status==='pending_approval';});
     var ex=getEx(emp,curMo);var de=getDe(emp,curMo);
     var moSal=getMoSalary(emp,curMo);var moCar=getMoCarry(emp,curMo);
@@ -1347,7 +1347,7 @@ function renderPayroll(){
     var ex2=getEx(emp,curMo);var de2=getDe(emp,curMo);
     var sal2=getMoSalary(emp,curMo);var car2=getMoCarry(emp,curMo);
     var moTxAll=getMergedTx(emp).filter(function(t){ return (t.date||'').startsWith(curMo); });
-    var approved=moTxAll.filter(function(t){return t.status==='approved'||t._legacy;});
+    var approved=moTxAll.filter(function(t){return !t._fromReq||(t._fromReq&&t.status==='approved');});
     var totalAdv2=approved.reduce(function(s2,t){return s2+Number(t.amount);},0);
     var moRepaid2=advanceRecords.filter(function(r){
       return r.employeeId===emp.id&&r.status!=='cancelled'&&(r.type==='repayment'||r.type==='clear')&&r.monthKey===curMo;
@@ -1521,8 +1521,8 @@ function renderDash(){
   if(!emp){c.innerHTML='<div class="empty"><div class="ei">👤</div><p>เพิ่มพนักงานก่อนเริ่มใช้งาน</p></div>';return;}
   var allTx=getMergedTx(emp);
   var moTx=allTx.filter(function(t){ return (t.date||'').startsWith(curMo); });
-  // นับเฉพาะ approved+legacy เท่านั้น (ไม่นับ pending_approval) — ตรงกับ renderPayroll
-  var moTxActive=moTx.filter(function(t){ return (t.status==='approved'||t._legacy)&&t.status!=='rejected'; });
+  // นับเฉพาะ approved — ใช้ logic เดียวกับ getMoTotalAdv (ไม่นับ pending, ไม่นับ rejected)
+  var moTxActive=moTx.filter(function(t){ return !t._fromReq||(t._fromReq&&t.status==='approved'); });
   var tot=moTxActive.reduce(function(s,t){return s+Number(t.amount);},0);
   var moRepaid=advanceRecords.filter(function(r){
     return r.employeeId===emp.id&&r.status!=='cancelled'
