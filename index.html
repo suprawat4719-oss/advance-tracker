@@ -1528,12 +1528,10 @@ function renderDash(){
   var moCarry=getMoCarry(emp,curMo);
   var totalExtra=(ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0);
   var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0);
-  // คำนวณยอดสุทธิ:
-  // เงินเดือน + รายได้เพิ่ม - รายการหัก - ยกมาเดือนก่อน - คงค้างจากเดือนก่อน - เบิกเดือนนี้
+  // คำนวณยอดสุทธิ: เงินเดือน + รายได้เพิ่ม - รายการหัก - ยกมาเดือนก่อน - ยอดค้างเบิกทั้งหมด
   var advCalcPre=calculateEmployeeAdvance(emp.id);
-  var outstandingPrev=advCalcPre.outstandingPrev||0; // คงค้างจากก่อนเดือนนี้
-  var advThisMonth=advCalcPre.advThisMonth||0; // เบิกเพิ่มเดือนนี้
-  var net=moSalary+totalExtra-totalDeduct-moCarry-outstandingPrev-totNet;
+  var outstandingAll=advCalcPre.outstanding||0;
+  var net=moSalary+totalExtra-totalDeduct-moCarry-outstandingAll;
   var pos=net>=0;
 
   // pending requests count (filtered to month)
@@ -1659,8 +1657,7 @@ function renderDash(){
           +'<span style="color:var(--blue)">คงค้าง: ฿'+fmt(totNet)+'</span>'
           +'</div>'
         :'')
-      +(outstandingPrev>0?'<div class="exprow"><span style="color:var(--gray)">คงค้างจากเดือนก่อน</span><span style="font-weight:600;color:var(--red)">-฿'+fmt(outstandingPrev)+'</span></div>':'')
-      +(totNet>0?'<div class="exprow"><span style="color:var(--gray)">เบิกเดือนนี้ ('+moLabel(curMo)+')</span><span style="font-weight:600;color:var(--blue)">-฿'+fmt(totNet)+'</span></div>':'')
+      +(outstandingAll>0?'<div class="exprow"><span style="color:var(--gray)">ยอดค้างเบิกทั้งหมด</span><span style="font-weight:600;color:var(--red)">-฿'+fmt(outstandingAll)+'</span></div>':'')
       +'<div class="exprow last"><span style="font-weight:600">ยอดสุทธิที่ได้รับ</span><span style="font-weight:700;color:'+(pos?'var(--green)':'var(--red)')+'">'+(pos?'+':'')+'฿'+fmt(net)+'</span></div>'
     +'</div>'
     +'<div class="sum2" style="margin-top:0">'
