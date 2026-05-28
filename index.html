@@ -643,7 +643,7 @@ async function closeCurMonth(){
 function calculateEmployeeAdvance(empId){
   // advances = ทุก request ที่ไม่ถูกปฏิเสธ (source: Finance App + Advance App upload)
   var empReqs=requests.filter(function(r){
-    return (r.employeeId||r.empId)===empId && r.status!=='rejected' && r.status!=='cancelled' && isAdvanceRecord(r);
+    return (r.employeeId||r.empId)===empId && r.status==='approved' && isAdvanceRecord(r);
   });
   var totalAdvance=empReqs.reduce(function(s,r){return s+Number(r.amount||0);},0);
   // รวม legacy transactions จาก emp.transactions[] ที่ไม่มีใน requests[]
