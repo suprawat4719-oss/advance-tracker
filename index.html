@@ -1346,10 +1346,8 @@ function renderPayroll(){
     var ex=getEx(emp,curMo);var de=getDe(emp,curMo);
     var moSal=getMoSalary(emp,curMo);var moCar=getMoCarry(emp,curMo);
     var totalAdv=approved.reduce(function(s,t){return s+Number(t.amount);},0);
-    var moRepaid=advanceRecords.filter(function(r){
-      return r.employeeId===emp.id&&r.status!=='cancelled'&&(r.type==='repayment'||r.type==='clear')&&r.monthKey===curMo;
-    }).reduce(function(s,r){return s+Number(r.amount||0);},0);
-    var totNet=Math.max(0,totalAdv-moRepaid);
+    // Option A: advance หักเต็มจำนวน — moRepaid บันทึกในบัญชีเบิกเท่านั้น ไม่กระทบ net salary
+    var totNet=totalAdv;
     var totalExtra=(ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0);
     var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0);
     var net=moSal+totalExtra-totalDeduct-moCar-totNet;
@@ -1380,10 +1378,8 @@ function renderPayroll(){
     var moTxAll=getMergedTx(emp).filter(function(t){ return (t.date||'').startsWith(curMo); });
     var approved=moTxAll.filter(function(t){return !t._fromReq||(t._fromReq&&t.status==='approved');});
     var totalAdv2=approved.reduce(function(s2,t){return s2+Number(t.amount);},0);
-    var moRepaid2=advanceRecords.filter(function(r){
-      return r.employeeId===emp.id&&r.status!=='cancelled'&&(r.type==='repayment'||r.type==='clear')&&r.monthKey===curMo;
-    }).reduce(function(s2,r){return s2+Number(r.amount||0);},0);
-    var totNet2=Math.max(0,totalAdv2-moRepaid2);
+    // Option A: advance หักเต็มจำนวน
+    var totNet2=totalAdv2;
     var net=sal2+((ex2.ot||0)+(ex2.travel||0)+(ex2.phone||0)+(ex2.other||0))-((de2.absent||0)+(de2.insurance||0)+(de2.social||0))-car2-totNet2;
     return s+net;
   },0);
