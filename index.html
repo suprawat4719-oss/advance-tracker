@@ -140,7 +140,7 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
 <div class="hdr">
   <div style="flex:1">
     <h1>💼 เบิกล่วงหน้า
-      <span class="ver-badge" id="verBadge" title="...">v3.7</span><span id="advVersionBadge" style="font-size:10px;font-weight:600;background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:20px;margin-left:8px;vertical-align:middle">v1.0-db-unified</span>
+      <span class="ver-badge" id="verBadge" title="...">v3.12</span><span id="advVersionBadge" style="font-size:10px;font-weight:600;background:#e0e7ff;color:#3730a3;padding:2px 8px;border-radius:20px;margin-left:8px;vertical-align:middle">v1.0-db-unified</span>
     </h1>
     <div class="hdr-sub">ระบบบันทึกเบิกเงินล่วงหน้าพนักงาน <span id="save-indicator"></span></div>
   </div>
@@ -320,8 +320,8 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
 
 <script>
 // ── VERSION ───────────────────────────────────────────────────────────────────
-var BUILD_TIME = "2026-05-27 16:00";
-var BUILD_LABEL = "v3.11";
+var BUILD_TIME = "2026-05-28 10:00";
+var BUILD_LABEL = "v3.12";
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 var db, emps=[], requests=[], ledger=[], curId=null, imgB64=null, imgMime="image/jpeg", isOnline=false;
@@ -614,6 +614,30 @@ async function loadMonthLocksFromFirebase(){
   }catch(e){ console.warn('[monthLocks] load:',e); }
 }
 
+// ── MONTH CLOSE (PER-EMPLOYEE) ────────────────────────────────────────────────
+// คนละระบบกับ monthLocks (global) — closedMonths ปิดต่อพนักงานแต่ละคน
+function isMonthClosed(empId, monthKey){
+  var emp=emps.find(function(e){return e.id===empId;});
+  if(!emp) return false;
+  return Array.isArray(emp.closedMonths)&&emp.closedMonths.indexOf(monthKey)>=0;
+}
+
+async function closeCurMonth(){
+  var emp=getEmp(); if(!emp) return;
+  if(isMonthClosed(emp.id,curMo)){toast('🔒 เดือนนี้ปิดแล้ว');return;}
+  if(!confirm('ยืนยันปิดเดือน '+moLabel(curMo)+' ?\nเมื่อปิดแล้วจะแก้ไขไม่ได้')) return;
+  if(!Array.isArray(emp.closedMonths)) emp.closedMonths=[];
+  emp.closedMonths.push(curMo);
+  saveLocal(); _hasPendingChanges=true;
+  if(isOnline&&db){
+    try{
+      await db.collection('employees').doc(emp.id).set({closedMonths:emp.closedMonths},{merge:true});
+    }catch(e){console.warn('[closeCurMonth]',e);}
+  }
+  renderDash(); renderPayroll();
+  toast('🔒 ปิดเดือน '+moLabel(curMo)+' เรียบร้อย');
+}
+
 // ── ADVANCE ACCOUNTING ────────────────────────────────────────────────────────
 // คำนวณยอดเบิกสะสม / เคลียร์แล้ว / คงค้าง ของพนักงาน
 function calculateEmployeeAdvance(empId){
@@ -656,6 +680,7 @@ async function saveAdvanceRecord(type, empId, amount, note, date){
   var now=new Date().toISOString();
   var d=date||now.slice(0,10);
   var mk=d.slice(0,7);
+  if(isMonthClosed(empId,mk)){alert('เดือนนี้ปิดแล้ว ไม่สามารถแก้ไขได้');return null;}
   if(!assertMonthEditable(mk)) return null;
   var rec={
     id:uid(),
@@ -719,6 +744,7 @@ async function saveAdvRecMo(){
   var note=document.getElementById('mo-advrec-note').value||'';
   var empId=_advRecEmpId;
   var mk=date.slice(0,7);
+  if(isMonthClosed(empId,mk)){alert('เดือนนี้ปิดแล้ว ไม่สามารถแก้ไขได้');return;}
   if(!assertMonthEditable(mk)) return;
 
   if(_advRecType==='advance'){
@@ -807,7 +833,11 @@ function closeHistoryMo(){document.getElementById('mo-history').classList.remove
 
 async function deleteAdvRec(recId, empId){
   var rec=advanceRecords.find(function(r){return r.id===recId;});
-  if(rec&&!assertMonthEditable(rec.monthKey||'')) return;
+  if(rec){
+    var _mk=rec.monthKey||'';
+    if(isMonthClosed(empId,_mk)){alert('เดือนนี้ปิดแล้ว ไม่สามารถแก้ไขได้');return;}
+    if(!assertMonthEditable(_mk)) return;
+  }
   if(!confirm('ต้องการลบรายการนี้?')) return;
   advanceRecords=advanceRecords.filter(function(r){return r.id!==recId;});
   saveLocalAdvRecs();
@@ -1326,8 +1356,9 @@ function renderPayroll(){
     var negStyle=net<0?'color:var(--red);font-weight:700':'color:var(--green);font-weight:700';
     var advCalc=calculateEmployeeAdvance(emp.id);
     var outStyle=advCalc.outstanding>0?'color:var(--red);font-weight:700':'color:var(--green);font-weight:700';
+    var empClosedBadge=isMonthClosed(emp.id,curMo)?'<span title="ปิดเดือนแล้ว" style="font-size:12px;margin-left:4px">🔒</span>':'';
     return'<tr style="border-bottom:1px solid var(--border)">'
-      +'<td style="padding:10px 12px;font-weight:600">'+'<span style="font-size:11px;color:var(--blue);font-family:monospace;font-weight:700">'+(emp.employeeCode||'...')+'</span><br>'+emp.name+(emp.dept?'<br><span style="font-size:11px;color:var(--gray)">'+emp.dept+'</span>':'')+(emp.bank?'<br><span style="font-size:11px;color:var(--blue)">🏦 '+emp.bank+'</span>':'')+'</td>'
+      +'<td style="padding:10px 12px;font-weight:600">'+'<span style="font-size:11px;color:var(--blue);font-family:monospace;font-weight:700">'+(emp.employeeCode||'...')+'</span><br>'+emp.name+empClosedBadge+(emp.dept?'<br><span style="font-size:11px;color:var(--gray)">'+emp.dept+'</span>':'')+(emp.bank?'<br><span style="font-size:11px;color:var(--blue)">🏦 '+emp.bank+'</span>':'')+'</td>'
       +'<td style="padding:10px 12px;text-align:right">'+fmtMoney(moSal)+'</td>'
       +'<td style="padding:10px 12px;text-align:right;color:var(--green)">'+fmtMoney(totalExtra)+'</td>'
       +'<td style="padding:10px 12px;text-align:right;color:var(--red)">'+fmtMoney(totalDeduct+moCar)+'</td>'
@@ -1539,6 +1570,8 @@ function renderDash(){
   var outstandingAll=advCalcPre.outstanding||0;
   var net=moSalary+totalExtra-totalDeduct-moCarry-totNet;
   var pos=net>=0;
+  // per-employee month close flag (ต่างจาก isMonthLocked ซึ่ง global)
+  var isClosed=isMonthClosed(emp.id,curMo);
 
   // pending requests count (filtered to month)
   var pendCount=moTx.filter(function(t){return t._fromReq&&t.status==='pending_approval';}).length;
@@ -1561,15 +1594,16 @@ function renderDash(){
       }
       if(t._legacy) stBadge+=' <span style="font-size:10px;color:#94A3B8">legacy</span>';
       var apBtns='';
-      if(isReq&&t.status==='pending_approval'){
+      if(isReq&&t.status==='pending_approval'&&!isMonthLocked(curMo)&&!isClosed){
         apBtns='<div class="ap-btns">'
           +'<button class="btnx btnx-g" onclick="approveReq(\''+t.id+'\')">✓ อนุมัติ</button>'
           +'<button class="btnx btnx-r" onclick="rejectReq(\''+t.id+'\')">✕ ปฏิเสธ</button>'
           +'</div>';
       }
-      var delBtn=isReq
+      var _txLocked=isMonthLocked(curMo)||isClosed;
+      var delBtn=_txLocked?'':(isReq
         ?'<button class="del" onclick="delReq(\''+t.id+'\')">🗑️</button>'
-        :'<button class="del" onclick="delTxById(\''+t.id+'\')">🗑️</button>';
+        :'<button class="del" onclick="delTxById(\''+t.id+'\')">🗑️</button>');
       return'<div class="txc">'
         +'<div class="txi '+statusCls+'">'+statusIcon+'</div>'
         +'<div class="txinfo">'
@@ -1608,27 +1642,33 @@ function renderDash(){
       :''
     )
     +'<div class="adv-act-btns">'
-      +'<button class="adv-act-btn" onclick="openAdvRecMo(\'advance\',\''+emp.id+'\')" style="background:#FEF3C7;color:#92400E'+(isMonthLocked(curMo)?';opacity:.4;pointer-events:none':'')+'">➕ บันทึกเบิก</button>'
-      +'<button class="adv-act-btn" onclick="openAdvRecMo(\'repayment\',\''+emp.id+'\')" style="background:var(--green-bg);color:#166534'+(isMonthLocked(curMo)?';opacity:.4;pointer-events:none':'')+'">↩ หักคืน</button>'
-      +'<button class="adv-act-btn" onclick="openAdvRecMo(\'clear\',\''+emp.id+'\')" style="background:#DBEAFE;color:#1E40AF'+(isMonthLocked(curMo)?';opacity:.4;pointer-events:none':'')+'">✅ เคลียร์ยอด</button>'
+      +'<button class="adv-act-btn" onclick="openAdvRecMo(\'advance\',\''+emp.id+'\')" style="background:#FEF3C7;color:#92400E'+((isMonthLocked(curMo)||isClosed)?';opacity:.4;pointer-events:none':'')+'">➕ บันทึกเบิก</button>'
+      +'<button class="adv-act-btn" onclick="openAdvRecMo(\'repayment\',\''+emp.id+'\')" style="background:var(--green-bg);color:#166534'+((isMonthLocked(curMo)||isClosed)?';opacity:.4;pointer-events:none':'')+'">↩ หักคืน</button>'
+      +'<button class="adv-act-btn" onclick="openAdvRecMo(\'clear\',\''+emp.id+'\')" style="background:#DBEAFE;color:#1E40AF'+((isMonthLocked(curMo)||isClosed)?';opacity:.4;pointer-events:none':'')+'">✅ เคลียร์ยอด</button>'
       +'<button class="adv-act-btn" onclick="openHistoryMo(\''+emp.id+'\')" style="background:#F3F4F6;color:var(--navy)">📋 ประวัติ</button>'
     +'</div>'
     +(isMonthLocked(curMo)
-      ?''
-      :'<div style="text-align:right;margin-top:4px">'
-        +'<button onclick="lockMonth(\''+curMo+'\')" style="background:none;border:1px solid #E5E7EB;border-radius:7px;color:var(--gray);font-size:11px;padding:4px 10px;cursor:pointer;font-family:inherit">🔒 ปิดเดือนนี้</button>'
-      +'</div>'
+      ?''  // global lock — banner unlock แสดงอยู่แล้วด้านบน
+      :isClosed
+        ?'<div style="text-align:right;margin-top:4px"><span style="display:inline-block;background:#FEE2E2;color:#991B1B;padding:4px 12px;border-radius:7px;font-size:11px;font-weight:700">🔒 ปิดแล้ว</span></div>'
+        :'<div style="text-align:right;margin-top:4px"><button onclick="closeCurMonth()" style="background:none;border:1px solid #E5E7EB;border-radius:7px;color:var(--gray);font-size:11px;padding:4px 10px;cursor:pointer;font-family:inherit">🔒 ปิดเดือนนี้</button></div>'
     );
 
   c.innerHTML=
-    '<div class="emp-card">'
+    (isClosed
+      ?'<div style="background:#FEE2E2;border-radius:10px;padding:12px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px">'
+        +'<span style="font-size:18px">🔒</span>'
+        +'<span style="font-weight:700;color:#991B1B;font-size:13px">เดือนนี้ปิดแล้ว — ดูข้อมูลได้อย่างเดียว</span>'
+        +'</div>'
+      :'')
+    +'<div class="emp-card">'
       +'<div style="display:flex;align-items:flex-start;justify-content:space-between">'
         +'<div><div class="nm">'+emp.name+'</div>'
         +'<div class="sub">'+(emp.dept?emp.dept+(emp.bank?' · ':''):'')+''+(emp.bank||'')+'</div></div>'
         +'<button onclick="openMo(\''+emp.id+'\')" style="background:rgba(255,255,255,.1);border:none;border-radius:6px;color:#94A3B8;padding:5px 10px;font-size:11px;cursor:pointer;font-family:inherit">✏️ แก้ไข</button>'
       +'</div>'
       +'<div class="grid2">'
-        +'<div class="fi"><label>ฐานเงินเดือน (บาท)</label><input type="number" value="'+(moSalary||'')+'" placeholder="กรอกเงินเดือน" onchange="updSalary(this.value)"></div>'
+        +'<div class="fi"><label>ฐานเงินเดือน (บาท)</label><input type="number" value="'+(moSalary||'')+'" placeholder="กรอกเงินเดือน" onchange="updSalary(this.value)"'+(isClosed?' disabled':'')+' ></div>'
         +'<div class="fi"><label>ยกมาเดือนก่อน (อัตโนมัติ)</label>'
           +'<div style="background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.12);border-radius:8px;padding:7px 9px;font-size:13px;color:'+(moCarry>0?'#FCA5A5':'#94A3B8')+'">'+(moCarry>0?'-฿'+fmt(moCarry):'ไม่มียอดค้าง')+'</div>'
         +'</div>'
@@ -1636,20 +1676,20 @@ function renderDash(){
       +'<div class="xsec">'
         +'<div class="xt">➕ รายได้เพิ่มเติม</div>'
         +'<div class="xgrid">'
-          +'<div class="xfi"><label>ค่าล่วงเวลา</label><input type="number" id="x_ot" value="'+(ex.ot||'')+'" placeholder="0"></div>'
-          +'<div class="xfi"><label>ค่าเดินทาง</label><input type="number" id="x_travel" value="'+(ex.travel||'')+'" placeholder="0"></div>'
-          +'<div class="xfi"><label>ค่าโทร</label><input type="number" id="x_phone" value="'+(ex.phone||'')+'" placeholder="0"></div>'
-          +'<div class="xfi"><label>รายรับอื่นๆ</label><input type="number" id="x_other" value="'+(ex.other||'')+'" placeholder="0"></div>'
+          +'<div class="xfi"><label>ค่าล่วงเวลา</label><input type="number" id="x_ot" value="'+(ex.ot||'')+'" placeholder="0"'+(isClosed?' disabled':'')+' ></div>'
+          +'<div class="xfi"><label>ค่าเดินทาง</label><input type="number" id="x_travel" value="'+(ex.travel||'')+'" placeholder="0"'+(isClosed?' disabled':'')+' ></div>'
+          +'<div class="xfi"><label>ค่าโทร</label><input type="number" id="x_phone" value="'+(ex.phone||'')+'" placeholder="0"'+(isClosed?' disabled':'')+' ></div>'
+          +'<div class="xfi"><label>รายรับอื่นๆ</label><input type="number" id="x_other" value="'+(ex.other||'')+'" placeholder="0"'+(isClosed?' disabled':'')+' ></div>'
         +'</div>'
       +'</div>'
       +'<div class="xsec" style="margin-top:8px">'
         +'<div class="xt" style="color:#FCA5A5">➖ รายการหัก</div>'
         +'<div class="xgrid">'
-          +'<div class="xfi"><label>ขาด/ลา/มาสาย</label><input type="number" id="d_absent" value="'+(de.absent||'')+'" placeholder="0"></div>'
-          +'<div class="xfi"><label>หักเงินประกัน</label><input type="number" id="d_insurance" value="'+(de.insurance||'')+'" placeholder="0"></div>'
-          +'<div class="xfi full"><label>หักประกันสังคม</label><input type="number" id="d_social" value="'+(de.social||'')+'" placeholder="0"></div>'
+          +'<div class="xfi"><label>ขาด/ลา/มาสาย</label><input type="number" id="d_absent" value="'+(de.absent||'')+'" placeholder="0"'+(isClosed?' disabled':'')+' ></div>'
+          +'<div class="xfi"><label>หักเงินประกัน</label><input type="number" id="d_insurance" value="'+(de.insurance||'')+'" placeholder="0"'+(isClosed?' disabled':'')+' ></div>'
+          +'<div class="xfi full"><label>หักประกันสังคม</label><input type="number" id="d_social" value="'+(de.social||'')+'" placeholder="0"'+(isClosed?' disabled':'')+' ></div>'
         +'</div>'
-        +'<button onclick="saveExtras()" style="margin-top:10px;width:100%;padding:9px;border:none;border-radius:8px;background:rgba(255,255,255,.15);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit">💾 บันทึกรายได้ / หัก</button>'
+        +'<button onclick="saveExtras()" '+(isClosed?'disabled ':'')+'style="margin-top:10px;width:100%;padding:9px;border:none;border-radius:8px;background:rgba(255,255,255,.15);color:#fff;font-size:13px;font-weight:600;'+(isClosed?'opacity:.4;cursor:not-allowed;':'cursor:pointer;')+'font-family:inherit">💾 บันทึกรายได้ / หัก</button>'
       +'</div>'
     +'</div>'
     +'<div class="expbox" style="margin-bottom:12px">'
@@ -1677,6 +1717,7 @@ function renderDash(){
 // ── EXTRAS ────────────────────────────────────────────────────────────────────
 async function saveExtras(){
   var e=getEmp();if(!e)return;
+  if(isMonthClosed(e.id,curMo)){alert('เดือนนี้ปิดแล้ว ไม่สามารถแก้ไขได้');return;}
   if(!assertMonthEditable(curMo)) return;
   // บันทึกแบบ per-month เท่านั้น — ไม่แตะ global e.extras/e.deducts
   // เพื่อให้แต่ละเดือนเป็นอิสระจากกันอย่างสมบูรณ์
@@ -1692,6 +1733,7 @@ async function saveExtras(){
 }
 async function updSalary(v){
   var e=getEmp();if(!e)return;
+  if(isMonthClosed(e.id,curMo)){alert('เดือนนี้ปิดแล้ว ไม่สามารถแก้ไขได้');return;}
   if(!assertMonthEditable(curMo)) return;
   var val=parseFloat(v)||0;
   // บันทึกแบบ per-month
@@ -1712,6 +1754,7 @@ async function delTxById(txId){
   var e=getEmp();if(!e)return;
   var req=requests.find(function(r){return r.id===txId;});
   var mk=(req&&(req.monthKey||(req.date||'').slice(0,7)))||curMo;
+  if(isMonthClosed(e.id,mk)){alert('เดือนนี้ปิดแล้ว ไม่สามารถแก้ไขได้');return;}
   if(!assertMonthEditable(mk)) return;
   if(!confirm('ลบรายการนี้?'))return;
   e.transactions=(e.transactions||[]).filter(function(t){
@@ -1722,9 +1765,13 @@ async function delTxById(txId){
   renderDash(); toast('🗑️ ลบรายการแล้ว');
 }
 async function delTx(i){
-  var e=getEmp();if(!e||!confirm('ลบรายการนี้?'))return;
+  var e=getEmp();if(!e)return;
   var allTx=getMergedTx(e);
   var tx=allTx[i]; if(!tx) return;
+  var _mk=(tx.monthKey||(tx.date||'').slice(0,7))||curMo;
+  if(isMonthClosed(e.id,_mk)){alert('เดือนนี้ปิดแล้ว ไม่สามารถแก้ไขได้');return;}
+  if(!assertMonthEditable(_mk)) return;
+  if(!confirm('ลบรายการนี้?'))return;
   e.transactions=(e.transactions||[]).filter(function(t,idx){
     return !(t.id===tx.id||(t.ref&&t.ref===tx.ref));
   });
@@ -1735,6 +1782,8 @@ async function delTx(i){
 async function delReq(reqId){
   var req0=requests.find(function(r){return r.id===reqId;});
   var mk0=(req0&&(req0.monthKey||(req0.date||'').slice(0,7)))||curMo;
+  var eid0=(req0&&(req0.employeeId||req0.empId))||curId;
+  if(isMonthClosed(eid0,mk0)){alert('เดือนนี้ปิดแล้ว ไม่สามารถแก้ไขได้');return;}
   if(!assertMonthEditable(mk0)) return;
   if(!confirm('ลบคำขอนี้?'))return;
   // ลบออกจาก employee.transactions ด้วย
@@ -1758,6 +1807,8 @@ async function approveReq(reqId){
   var req=requests.find(function(r){return r.id===reqId;});
   if(!req) return;
   var mk=(req.monthKey||(req.date||'').slice(0,7));
+  var eid=(req.employeeId||req.empId)||curId;
+  if(isMonthClosed(eid,mk)){alert('เดือนนี้ปิดแล้ว ไม่สามารถแก้ไขได้');return;}
   if(!assertMonthEditable(mk)) return;
   if(!confirm('อนุมัติคำขอนี้?'))return;
   await setReqStatus(reqId,'approved');
@@ -1769,6 +1820,8 @@ async function rejectReq(reqId){
   var req=requests.find(function(r){return r.id===reqId;});
   if(!req) return;
   var mk=(req.monthKey||(req.date||'').slice(0,7));
+  var eid=(req.employeeId||req.empId)||curId;
+  if(isMonthClosed(eid,mk)){alert('เดือนนี้ปิดแล้ว ไม่สามารถแก้ไขได้');return;}
   if(!assertMonthEditable(mk)) return;
   if(!confirm('ปฏิเสธคำขอนี้?'))return;
   await setReqStatus(reqId,'rejected');
@@ -1964,6 +2017,7 @@ async function saveTx(){
   if(!amt||amt<=0){toast('กรุณากรอกจำนวนเงิน');return;}
   var txDateRaw=normDate(document.getElementById('rd').value)||new Date().toISOString().slice(0,10);
   var txMk=txDateRaw.slice(0,7);
+  if(isMonthClosed(eid,txMk)){alert('เดือนนี้ปิดแล้ว ไม่สามารถแก้ไขได้');return;}
   if(!assertMonthEditable(txMk)) return;
   var refNo=(document.getElementById('rr').value||'').trim();
   var txId=uid();
@@ -2103,7 +2157,8 @@ function printSlip(eidOverride){
   html+='.summary{border:2px solid #0D1B2A;border-radius:8px;padding:14px;margin-bottom:14px}';
   html+='.srow{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px solid #eee}.srow:last-child{border-bottom:none;font-size:16px;font-weight:700;padding-top:10px;margin-top:4px}';
   html+='.pos{color:#16A34A}.neg{color:#DC2626}.footer{text-align:center;font-size:11px;color:#aaa;margin-top:16px}@media print{body{padding:10px}}</style></head><body>';
-  html+='<div class="hd"><h1>💼 สลิปเงินเดือน</h1><p>วันที่ออกสลิป: '+dateStr+' · '+BUILD_LABEL+'</p></div>';
+  var slipClosed=isMonthClosed(emp.id,curMo);
+  html+='<div class="hd"><h1>💼 สลิปเงินเดือน'+(slipClosed?' <span style="background:#FEE2E2;color:#991B1B;font-size:13px;padding:2px 10px;border-radius:20px;vertical-align:middle">🔒 ปิดเดือนแล้ว</span>':'')+'</h1><p>วันที่ออกสลิป: '+dateStr+' · '+BUILD_LABEL+'</p></div>';
   html+='<div class="sec"><h3>ข้อมูลพนักงาน</h3>';
   html+='<div class="row2"><span class="lbl">ชื่อ-นามสกุล</span><span class="val">'+emp.name+'</span></div>';
   if(emp.dept)html+='<div class="row2"><span class="lbl">แผนก</span><span class="val">'+emp.dept+'</span></div>';
@@ -2154,19 +2209,29 @@ function expCSV(eid){
 function cpTxt(eid){
   var emp=emps.find(function(e){return e.id===eid;});if(!emp)return;
   var allTx=getMergedTx(emp);
-  var moTxTxt=allTx.filter(function(t){return (t.date||'').startsWith(curMo);});
+  // เหมือนกับ renderDash: กรองเฉพาะ approved ของเดือนนี้
+  var moTxAll=allTx.filter(function(t){return (t.date||'').startsWith(curMo);});
+  var moTxApproved=moTxAll.filter(function(t){return !t._fromReq||(t._fromReq&&t.status==='approved');});
   var ex=getEx(emp,curMo);var de=getDe(emp,curMo);
   var moSalary=getMoSalary(emp,curMo);var moCarry=getMoCarry(emp,curMo);
-  var tot=moTxTxt.reduce(function(s,t){return s+Number(t.amount);},0);
+  var tot=moTxApproved.reduce(function(s,t){return s+Number(t.amount);},0);
+  // หักคืน — เหมือนกับ renderDash
+  var moRepaid=advanceRecords.filter(function(r){
+    return r.employeeId===emp.id&&r.status!=='cancelled'&&(r.type==='repayment'||r.type==='clear')&&r.monthKey===curMo;
+  }).reduce(function(s,r){return s+Number(r.amount||0);},0);
+  var totNet=Math.max(0,tot-moRepaid);
   var totalExtra=(ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0);
   var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0);
-  var net=moSalary+totalExtra-totalDeduct-moCarry-tot;
+  var net=moSalary+totalExtra-totalDeduct-moCarry-totNet;
   var t='รายการเบิกล่วงหน้า — '+emp.name+' ('+moLabel(curMo)+')\n'+'='.repeat(36)+'\n';
-  moTxTxt.forEach(function(x,i){t+=(i+1)+'. '+fmtDate(x.date)+' | '+(x.category||x.bank)+' | ผู้รับ: '+(x.recipient||'-')+' | ฿'+Number(x.amount).toLocaleString('th-TH')+(x._fromReq?' ['+x.status+']':'')+'\n';});
+  moTxApproved.forEach(function(x,i){t+=(i+1)+'. '+fmtDate(x.date)+' | '+(x.category||x.bank)+' | ผู้รับ: '+(x.recipient||'-')+' | ฿'+Number(x.amount).toLocaleString('th-TH')+'\n';});
   t+='='.repeat(36)+'\nเงินเดือน: ฿'+moSalary.toLocaleString('th-TH')+'\n';
   if(totalExtra)t+='รายได้เพิ่ม: +฿'+totalExtra.toLocaleString('th-TH')+'\n';
   if(totalDeduct)t+='รายการหัก: -฿'+totalDeduct.toLocaleString('th-TH')+'\n';
-  t+='รวมเบิก: ฿'+tot.toLocaleString('th-TH')+'\nยอดสุทธิ: '+(net>=0?'+':'')+'฿'+net.toLocaleString('th-TH')+'\n';
+  if(moCarry)t+='ยกมาเดือนก่อน: -฿'+moCarry.toLocaleString('th-TH')+'\n';
+  t+='รวมเบิก: ฿'+tot.toLocaleString('th-TH');
+  if(moRepaid)t+=' (หักคืน ฿'+moRepaid.toLocaleString('th-TH')+' คงค้าง ฿'+totNet.toLocaleString('th-TH')+')';
+  t+='\nยอดสุทธิ: '+(net>=0?'+':'')+'฿'+net.toLocaleString('th-TH')+'\n';
   navigator.clipboard.writeText(t).then(function(){toast('📋 คัดลอกแล้ว');});
 }
 
