@@ -320,8 +320,8 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
 
 <script>
 // ── VERSION ───────────────────────────────────────────────────────────────────
-var BUILD_TIME = "2026-05-28 10:00";
-var BUILD_LABEL = "v3.12";
+var BUILD_TIME = "2026-05-28 15:00";
+var BUILD_LABEL = "v3.14";
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 var db, emps=[], requests=[], ledger=[], curId=null, imgB64=null, imgMime="image/jpeg", isOnline=false;
@@ -1522,24 +1522,16 @@ function getMoCarry(emp, mo){
   var prevCarry=hasPrevPrevData?0:(emp.carry||0);
   if(hasPrevPrevData){
     var ppAdv=getMoTotalAdv(emp,prevPrevMo);
-    var ppRepaid=advanceRecords.filter(function(r){
-      return r.employeeId===emp.id&&r.status!=='cancelled'
-        &&(r.type==='repayment'||r.type==='clear')
-        &&r.monthKey===prevPrevMo;
-    }).reduce(function(s,r){return s+Number(r.amount||0);},0);
-    var ppAdvNet=Math.max(0,ppAdv-ppRepaid);
+    // Option A: advance หักเต็มจำนวน — moRepaid ไม่กระทบ carry
+    var ppAdvNet=ppAdv;
     var ppNet=calcNetRaw(emp,prevPrevMo,ppAdvNet,emp.carry||0);
     prevCarry=ppNet<0?Math.abs(ppNet):0;
   }
 
   // คำนวณ net จริงของ prevMo ด้วย prevCarry ที่ถูกต้อง
   var prevAdv=getMoTotalAdv(emp,prevMo);
-  var prevRepaid=advanceRecords.filter(function(r){
-    return r.employeeId===emp.id&&r.status!=='cancelled'
-      &&(r.type==='repayment'||r.type==='clear')
-      &&r.monthKey===prevMo;
-  }).reduce(function(s,r){return s+Number(r.amount||0);},0);
-  var prevAdvNet=Math.max(0,prevAdv-prevRepaid);
+  // Option A: advance หักเต็มจำนวน — moRepaid ไม่กระทบ carry
+  var prevAdvNet=prevAdv;
   var prevNet=calcNetRaw(emp,prevMo,prevAdvNet,prevCarry);
 
   return prevNet<0?Math.abs(prevNet):0;
@@ -1559,13 +1551,14 @@ function renderDash(){
     return r.employeeId===emp.id&&r.status!=='cancelled'
       &&(r.type==='repayment'||r.type==='clear')&&r.monthKey===curMo;
   }).reduce(function(s,r){return s+Number(r.amount||0);},0);
-  var totNet=Math.max(0,tot-moRepaid);
+  // Option A: เบิกหักจากเงินเดือนเต็มจำนวน — moRepaid (หักคืน/เคลียร์) บันทึกเฉพาะบัญชีเบิก ไม่กระทบ net salary
+  var totNet=tot;
   var ex=getEx(emp,curMo);var de=getDe(emp,curMo);
   var moSalary=getMoSalary(emp,curMo);
   var moCarry=getMoCarry(emp,curMo);
   var totalExtra=(ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0);
   var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0);
-  // คำนวณยอดสุทธิ: เงินเดือน + รายได้เพิ่ม - รายการหัก - ยกมาเดือนก่อน - เบิกเดือนนี้สุทธิ (หลังหักคืน)
+  // คำนวณยอดสุทธิ: เงินเดือน + รายได้เพิ่ม - รายการหัก - ยกมาเดือนก่อน - เบิกเดือนนี้
   var advCalcPre=calculateEmployeeAdvance(emp.id);
   var outstandingAll=advCalcPre.outstanding||0;
   var net=moSalary+totalExtra-totalDeduct-moCarry-totNet;
@@ -1697,13 +1690,14 @@ function renderDash(){
       +(totalExtra>0?'<div class="exprow"><span style="color:var(--gray)">รายได้เพิ่มเติม</span><span style="font-weight:600;color:var(--green)">+฿'+fmt(totalExtra)+'</span></div>':'')
       +(totalDeduct>0?'<div class="exprow"><span style="color:var(--gray)">รายการหัก</span><span style="font-weight:600;color:var(--red)">-฿'+fmt(totalDeduct)+'</span></div>':'')
       +(moCarry>0?'<div class="exprow"><span style="color:var(--gray)">ยกมาเดือนก่อน <span style="font-size:10px;color:#94A3B8">(อัตโนมัติ)</span></span><span style="font-weight:600;color:var(--red)">-฿'+fmt(moCarry)+'</span></div>':'')
-      +(moRepaid>0
-        ?'<div class="exprow" style="font-size:11px;color:var(--gray)">'
-          +'<span>↳ เบิกเดือนนี้: ฿'+fmt(tot)+'&nbsp;&nbsp;หักคืน: ฿'+fmt(moRepaid)+'</span>'
-          +'<span style="color:var(--blue)">คงค้าง: ฿'+fmt(totNet)+'</span>'
-          +'</div>'
+      +(tot>0
+        ?'<div class="exprow"><span style="color:var(--gray)">เบิกล่วงหน้าเดือนนี้</span><span style="font-weight:600;color:var(--red)">-฿'+fmt(tot)+'</span></div>'
+          +(moRepaid>0
+            ?'<div class="exprow" style="font-size:11px;color:#94A3B8;padding-top:0">'
+              +'<span>↳ หักคืน/เคลียร์เดือนนี้ ฿'+fmt(moRepaid)+' (บันทึกในบัญชีเบิกล่วงหน้าแล้ว)</span>'
+              +'</div>'
+            :'')
         :'')
-      +(totNet>0?'<div class="exprow"><span style="color:var(--gray)">เบิกเดือนนี้ (สุทธิ)</span><span style="font-weight:600;color:var(--red)">-฿'+fmt(totNet)+'</span></div>':'')
       +'<div class="exprow last"><span style="font-weight:600">ยอดสุทธิที่ได้รับ</span><span style="font-weight:700;color:'+(pos?'var(--green)':'var(--red)')+'">'+(pos?'+':'')+'฿'+fmt(net)+'</span></div>'
     +'</div>'
     +'<div class="sum2" style="margin-top:0">'
@@ -2215,11 +2209,11 @@ function cpTxt(eid){
   var ex=getEx(emp,curMo);var de=getDe(emp,curMo);
   var moSalary=getMoSalary(emp,curMo);var moCarry=getMoCarry(emp,curMo);
   var tot=moTxApproved.reduce(function(s,t){return s+Number(t.amount);},0);
-  // หักคืน — เหมือนกับ renderDash
+  // Option A: advance หักเต็มจำนวน — moRepaid บันทึกบัญชีเบิกเท่านั้น ไม่กระทบ net salary
   var moRepaid=advanceRecords.filter(function(r){
     return r.employeeId===emp.id&&r.status!=='cancelled'&&(r.type==='repayment'||r.type==='clear')&&r.monthKey===curMo;
   }).reduce(function(s,r){return s+Number(r.amount||0);},0);
-  var totNet=Math.max(0,tot-moRepaid);
+  var totNet=tot;
   var totalExtra=(ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0);
   var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0);
   var net=moSalary+totalExtra-totalDeduct-moCarry-totNet;
@@ -2229,9 +2223,9 @@ function cpTxt(eid){
   if(totalExtra)t+='รายได้เพิ่ม: +฿'+totalExtra.toLocaleString('th-TH')+'\n';
   if(totalDeduct)t+='รายการหัก: -฿'+totalDeduct.toLocaleString('th-TH')+'\n';
   if(moCarry)t+='ยกมาเดือนก่อน: -฿'+moCarry.toLocaleString('th-TH')+'\n';
-  t+='รวมเบิก: ฿'+tot.toLocaleString('th-TH');
-  if(moRepaid)t+=' (หักคืน ฿'+moRepaid.toLocaleString('th-TH')+' คงค้าง ฿'+totNet.toLocaleString('th-TH')+')';
-  t+='\nยอดสุทธิ: '+(net>=0?'+':'')+'฿'+net.toLocaleString('th-TH')+'\n';
+  if(tot)t+='เบิกล่วงหน้า: -฿'+tot.toLocaleString('th-TH')+'\n';
+  if(moRepaid)t+='[หักคืน/เคลียร์บัญชีเบิก: ฿'+moRepaid.toLocaleString('th-TH')+']\n';
+  t+='ยอดสุทธิ: '+(net>=0?'+':'')+'฿'+net.toLocaleString('th-TH')+'\n';
   navigator.clipboard.writeText(t).then(function(){toast('📋 คัดลอกแล้ว');});
 }
 
