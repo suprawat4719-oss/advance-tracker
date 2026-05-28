@@ -636,7 +636,18 @@ function calculateEmployeeAdvance(empId){
   var totalCleared=empRecs.filter(function(r){return r.type==='repayment'||r.type==='clear';})
     .reduce(function(s,r){return s+Number(r.amount||0);},0);
   var outstanding=Math.max(0, totalAdvance-totalCleared);
-  return{totalAdvance:totalAdvance, totalCleared:totalCleared, outstanding:outstanding};
+  // แยก outstanding ก่อนเดือนนี้ (ไม่รวมเบิกเดือนนี้)
+  var advThisMonth=empReqs.filter(function(r){
+    return (r.date||'').startsWith(curMo);
+  }).reduce(function(s,r){return s+Number(r.amount||0);},0);
+  // legacy ของเดือนนี้
+  if(emp){
+    getMergedTx(emp).filter(function(t){
+      return t._legacy && t.status!=='rejected' && (t.date||'').startsWith(curMo);
+    }).forEach(function(t){ advThisMonth+=Number(t.amount||0); });
+  }
+  var outstandingPrev=Math.max(0, totalAdvance-advThisMonth-totalCleared);
+  return{totalAdvance:totalAdvance, totalCleared:totalCleared, outstanding:outstanding, outstandingPrev:outstandingPrev, advThisMonth:advThisMonth};
 }
 
 // บันทึก advance_record (repayment | clear) ลง Firestore + local
@@ -1517,11 +1528,11 @@ function renderDash(){
   var moCarry=getMoCarry(emp,curMo);
   var totalExtra=(ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0);
   var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0);
-  // คำนวณยอดสุทธิ: เงินเดือน + รายได้เพิ่ม - รายการหัก - ยกมาเดือนก่อน - คงค้างสะสม(ไม่รวมเดือนนี้) - เบิกเดือนนี้
+  // คำนวณยอดสุทธิ:
+  // เงินเดือน + รายได้เพิ่ม - รายการหัก - ยกมาเดือนก่อน - คงค้างจากเดือนก่อน - เบิกเดือนนี้
   var advCalcPre=calculateEmployeeAdvance(emp.id);
-  var outstandingAll=advCalcPre.outstanding||0;
-  // outstanding ไม่รวมเดือนนี้ = outstanding ทั้งหมด - เบิกเดือนนี้ (เพราะ totNet แยกอยู่แล้ว)
-  var outstandingPrev=Math.max(0,outstandingAll-totNet);
+  var outstandingPrev=advCalcPre.outstandingPrev||0; // คงค้างจากก่อนเดือนนี้
+  var advThisMonth=advCalcPre.advThisMonth||0; // เบิกเพิ่มเดือนนี้
   var net=moSalary+totalExtra-totalDeduct-moCarry-outstandingPrev-totNet;
   var pos=net>=0;
 
@@ -1648,8 +1659,8 @@ function renderDash(){
           +'<span style="color:var(--blue)">คงค้าง: ฿'+fmt(totNet)+'</span>'
           +'</div>'
         :'')
-      +(outstandingPrev>0?'<div class="exprow"><span style="color:var(--gray)">คงค้างสะสม (ยกมา)</span><span style="font-weight:600;color:var(--red)">-฿'+fmt(outstandingPrev)+'</span></div>':'')
-      +(totNet>0?'<div class="exprow"><span style="color:var(--gray)">เบิกเดือนนี้ '+moLabel(curMo)+'</span><span style="font-weight:600;color:var(--blue)">-฿'+fmt(totNet)+'</span></div>':'')
+      +(outstandingPrev>0?'<div class="exprow"><span style="color:var(--gray)">คงค้างจากเดือนก่อน</span><span style="font-weight:600;color:var(--red)">-฿'+fmt(outstandingPrev)+'</span></div>':'')
+      +(totNet>0?'<div class="exprow"><span style="color:var(--gray)">เบิกเดือนนี้ ('+moLabel(curMo)+')</span><span style="font-weight:600;color:var(--blue)">-฿'+fmt(totNet)+'</span></div>':'')
       +'<div class="exprow last"><span style="font-weight:600">ยอดสุทธิที่ได้รับ</span><span style="font-weight:700;color:'+(pos?'var(--green)':'var(--red)')+'">'+(pos?'+':'')+'฿'+fmt(net)+'</span></div>'
     +'</div>'
     +'<div class="sum2" style="margin-top:0">'
