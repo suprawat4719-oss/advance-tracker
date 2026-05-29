@@ -320,8 +320,8 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
 
 <script>
 // ── VERSION ───────────────────────────────────────────────────────────────────
-var BUILD_TIME = "2026-05-28 18:00";
-var BUILD_LABEL = "v3.16";
+var BUILD_TIME = "2026-05-29 10:00";
+var BUILD_LABEL = "v3.17";
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 var db, emps=[], requests=[], ledger=[], curId=null, imgB64=null, imgMime="image/jpeg", isOnline=false;
@@ -889,16 +889,19 @@ async function loadAdvanceByMonth(monthKey){
     // กรองเฉพาะรายการ "เบิกล่วงหน้า" เท่านั้น — ใช้ isAdvanceRecord() เป็นตัวกรองกลาง
     recs=recs.filter(isAdvanceRecord);
     monthlyRecords[monthKey]=recs;
-    // แปลงเป็น advance_requests format แล้ว merge (dedup by id + empId+month+amount)
+    // แปลงเป็น advance_requests format แล้ว merge (dedup by id + empId+month+amount+ref+date)
     var existing=new Set(requests.map(function(r){return r.id;}));
     var existingKeys=new Set(requests.map(function(r){
-      return (r.employeeId||r.empId||'')+'|'+(r.monthKey||(r.date||'').slice(0,7))+'|'+Math.abs(Number(r.amount));
+      var rp=r.referenceNo?('||ref:'+r.referenceNo):'';
+      var dp=r.transferDate?('||dt:'+r.transferDate):(r.date?('||dt:'+r.date):'');
+      return (r.employeeId||r.empId||'')+'|'+(r.monthKey||(r.date||'').slice(0,7))+'|'+Math.abs(Number(r.amount))+rp+dp;
     }));
     var newReqs=recs
       .filter(function(r){
         if(existing.has(r.id)) return false;
-        // dedup ด้วย empId+monthKey+amount
-        var key=(r.employeeId||'')+'|'+(r.monthKey||monthKey)+'|'+Math.abs(Number(r.amount));
+        var rp=r.referenceNo?('||ref:'+r.referenceNo):'';
+        var dp=r.transferDate?('||dt:'+r.transferDate):'';
+        var key=(r.employeeId||'')+'|'+(r.monthKey||monthKey)+'|'+Math.abs(Number(r.amount))+rp+dp;
         if(existingKeys.has(key)) return false;
         existingKeys.add(key);
         return true;
