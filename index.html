@@ -318,10 +318,32 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
   </div>
 </div>
 
+<!-- MODAL: ปลดล็อกเดือน -->
+<div class="mo" id="mo-unlock" onclick="if(event.target===this)closeUnlockMo()">
+  <div class="mbox">
+    <h3 id="mo-unlock-title">🔓 ปลดล็อกเดือน</h3>
+    <div style="background:#FEF2F2;border:1.5px solid #FECACA;border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px;color:#991B1B;line-height:1.5">
+      ⚠️ การปลดล็อกจะเปิดให้แก้ไขข้อมูลย้อนหลังได้ กรุณาใช้เฉพาะเมื่อจำเป็นเท่านั้น การกระทำนี้จะถูกบันทึกไว้ในระบบ
+    </div>
+    <div class="mf">
+      <label>รหัส Admin *</label>
+      <input type="password" id="mo-unlock-pw" placeholder="กรอกรหัส Admin" autocomplete="off">
+    </div>
+    <div class="mf">
+      <label>เหตุผลในการปลดล็อก *</label>
+      <input type="text" id="mo-unlock-reason" placeholder="ระบุเหตุผลให้ชัดเจน...">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn" onclick="confirmUnlock()" style="flex:1;margin-top:0;background:#DC2626;color:#fff">🔓 ยืนยันปลดล็อก</button>
+      <button class="btn btn-o" onclick="closeUnlockMo()" style="width:auto;padding:13px 20px;margin-top:0">ยกเลิก</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── VERSION ───────────────────────────────────────────────────────────────────
-var BUILD_TIME = "2026-05-30 13:00";
-var BUILD_LABEL = "v3.20";
+var BUILD_TIME = "2026-05-30 16:00";
+var BUILD_LABEL = "v3.21";
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 var db, emps=[], requests=[], ledger=[], curId=null, imgB64=null, imgMime="image/jpeg", isOnline=false;
@@ -345,7 +367,7 @@ var LOCAL_UNLOCK_LOGS='advance_unlock_logs';
 var LOCAL_AUDIT='advance_audit_logs';
 var ADMIN_PASSWORD='Jack@2026';
 // modal state
-var _advRecType=null, _advRecEmpId=null;
+var _advRecType=null, _advRecEmpId=null, _unlockMoKey=null;
 
 // ── EMPLOYEE CODE HELPERS ─────────────────────────────────────────────────────
 
@@ -579,24 +601,44 @@ async function lockMonth(monthKey){
   renderDash(); renderPayroll();
   toast('🔒 ปิดเดือน '+moLabel(monthKey)+' เรียบร้อย');
 }
-async function unlockMonth(monthKey){
+function unlockMonth(monthKey){
+  openUnlockMo(monthKey);
+}
+function openUnlockMo(monthKey){
   if(!isMonthLocked(monthKey)){toast('เดือนนี้ยังไม่ถูกปิด');return;}
-  var pw=prompt('กรอกรหัส Admin เพื่อปลดล็อกเดือน '+moLabel(monthKey)+':');
-  if(!pw) return;
+  _unlockMoKey=monthKey;
+  document.getElementById('mo-unlock-title').textContent='🔓 ปลดล็อกเดือน '+moLabel(monthKey);
+  document.getElementById('mo-unlock-pw').value='';
+  document.getElementById('mo-unlock-pw').style.borderColor='';
+  document.getElementById('mo-unlock-reason').value='';
+  document.getElementById('mo-unlock').classList.add('on');
+  setTimeout(function(){document.getElementById('mo-unlock-pw').focus();},250);
+}
+function closeUnlockMo(){
+  document.getElementById('mo-unlock').classList.remove('on');
+  _unlockMoKey=null;
+}
+async function confirmUnlock(){
+  var monthKey=_unlockMoKey;
+  if(!monthKey) return;
+  var pw=(document.getElementById('mo-unlock-pw').value||'').trim();
+  var reason=(document.getElementById('mo-unlock-reason').value||'').trim();
+  if(!pw){toast('⚠️ กรุณากรอกรหัส Admin');return;}
+  if(!reason){toast('⚠️ กรุณากรอกเหตุผล');return;}
   if(pw!==ADMIN_PASSWORD){
     addAuditLog('UNLOCK_FAILED',monthKey,{reason:'รหัสผิด'});
-    alert('❌ รหัส Admin ไม่ถูกต้อง\nการพยายามปลดล็อกถูกบันทึกไว้แล้ว');
+    document.getElementById('mo-unlock-pw').value='';
+    document.getElementById('mo-unlock-pw').style.borderColor='var(--red)';
+    toast('❌ รหัส Admin ไม่ถูกต้อง — บันทึกการพยายามปลดล็อกแล้ว');
     return;
   }
-  var reason=prompt('กรอกเหตุผลในการปลดล็อก:');
-  if(!reason) return;
-  if(!confirm('ยืนยันปลดล็อกเดือน '+moLabel(monthKey)+'?')) return;
   var now=new Date().toISOString();
   var log={monthKey:monthKey,unlockedAt:now,unlockedBy:'admin',reason:reason};
   unlockLogs.push(log);
   addAuditLog('UNLOCK_MONTH',monthKey,{reason:reason});
   delete monthLocks[monthKey];
   saveLocalLocks();
+  closeUnlockMo();
   if(isOnline&&db){
     try{
       await db.collection('month_locks').doc(monthKey).delete();
@@ -1358,7 +1400,69 @@ function renderPayroll(){
   },0);
 
   var totalOutstanding=emps.reduce(function(s,e){return s+calculateEmployeeAdvance(e.id).outstanding;},0);
-  c.innerHTML='<div class="card" style="overflow-x:auto;padding:0">'
+
+  // ── สรุปรายละเอียดเงินเดือนประจำเดือน ──
+  var _ps={sal:0,ot:0,travel:0,phone:0,other:0,absent:0,insurance:0,social:0,carry:0,adv:0};
+  emps.forEach(function(_e){
+    var _ex=getEx(_e,curMo); var _de=getDe(_e,curMo);
+    var _appr=getMergedTx(_e).filter(function(t){return (t.date||'').startsWith(curMo)&&(!t._fromReq||(t._fromReq&&t.status==='approved'));});
+    _ps.sal+=getMoSalary(_e,curMo);
+    _ps.ot+=(_ex.ot||0); _ps.travel+=(_ex.travel||0); _ps.phone+=(_ex.phone||0); _ps.other+=(_ex.other||0);
+    _ps.absent+=(_de.absent||0); _ps.insurance+=(_de.insurance||0); _ps.social+=(_de.social||0);
+    _ps.carry+=getMoCarry(_e,curMo);
+    _ps.adv+=_appr.reduce(function(s,t){return s+Number(t.amount);},0);
+  });
+  var _psExtra=_ps.ot+_ps.travel+_ps.phone+_ps.other;
+  var _psDeduct=_ps.absent+_ps.insurance+_ps.social;
+  var _summaryHtml='<div class="card" style="margin-bottom:12px;padding:16px">'
+    +'<div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:12px">📊 สรุปเงินเดือน '+moLabel(curMo)+'</div>'
+    +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px">'
+      +'<div style="background:#F0F4FF;border-radius:8px;padding:10px;text-align:center">'
+        +'<div style="font-size:10px;color:var(--gray);margin-bottom:2px">เงินเดือนรวม</div>'
+        +'<div style="font-size:14px;font-weight:700;color:var(--navy)">'+fmtMoney(_ps.sal)+'</div>'
+      +'</div>'
+      +'<div style="background:#F0FFF4;border-radius:8px;padding:10px;text-align:center">'
+        +'<div style="font-size:10px;color:var(--gray);margin-bottom:2px">รายรับเพิ่มรวม</div>'
+        +'<div style="font-size:14px;font-weight:700;color:var(--green)">+'+fmtMoney(_psExtra)+'</div>'
+      +'</div>'
+      +'<div style="background:#FFF5F5;border-radius:8px;padding:10px;text-align:center">'
+        +'<div style="font-size:10px;color:var(--gray);margin-bottom:2px">รายการหักรวม</div>'
+        +'<div style="font-size:14px;font-weight:700;color:var(--red)">-'+fmtMoney(_psDeduct+_ps.carry)+'</div>'
+      +'</div>'
+      +'<div style="background:#EFF6FF;border-radius:8px;padding:10px;text-align:center">'
+        +'<div style="font-size:10px;color:var(--gray);margin-bottom:2px">เบิกล่วงหน้ารวม</div>'
+        +'<div style="font-size:14px;font-weight:700;color:var(--blue)">'+fmtMoney(_ps.adv)+'</div>'
+      +'</div>'
+    +'</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin-bottom:12px">'
+      +'<div style="background:#F9FAFB;border-radius:8px;padding:10px">'
+        +'<div style="font-size:11px;font-weight:600;color:var(--navy);margin-bottom:6px">💰 รายรับเพิ่มเติม (รายละเอียด)</div>'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--gray)">OT</span><span style="color:var(--green);font-weight:600">+'+fmtMoney(_ps.ot)+'</span></div>'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--gray)">ค่าเดินทาง</span><span style="color:var(--green);font-weight:600">+'+fmtMoney(_ps.travel)+'</span></div>'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--gray)">ค่าโทรศัพท์</span><span style="color:var(--green);font-weight:600">+'+fmtMoney(_ps.phone)+'</span></div>'
+        +'<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:4px;margin-top:3px"><span style="color:var(--gray)">อื่นๆ</span><span style="color:var(--green);font-weight:600">+'+fmtMoney(_ps.other)+'</span></div>'
+      +'</div>'
+      +'<div style="background:#F9FAFB;border-radius:8px;padding:10px">'
+        +'<div style="font-size:11px;font-weight:600;color:var(--navy);margin-bottom:6px">📉 รายการหัก (รายละเอียด)</div>'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--gray)">ขาดงาน</span><span style="color:var(--red);font-weight:600">-'+fmtMoney(_ps.absent)+'</span></div>'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--gray)">ประกัน</span><span style="color:var(--red);font-weight:600">-'+fmtMoney(_ps.insurance)+'</span></div>'
+        +'<div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="color:var(--gray)">ประกันสังคม</span><span style="color:var(--red);font-weight:600">-'+fmtMoney(_ps.social)+'</span></div>'
+        +'<div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);padding-top:4px;margin-top:3px"><span style="color:var(--gray)">ยกมาเดือนก่อน</span><span style="color:var(--red);font-weight:600">-'+fmtMoney(_ps.carry)+'</span></div>'
+      +'</div>'
+    +'</div>'
+    +'<div style="border-top:2px solid var(--border);padding-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px">'
+      +'<div style="background:'+(totalAll>=0?'#F0FFF4':'#FEF2F2')+';border-radius:8px;padding:12px;text-align:center">'
+        +'<div style="font-size:11px;color:var(--gray);margin-bottom:3px">สุทธิจ่ายจริงรวม</div>'
+        +'<div style="font-size:18px;font-weight:700;'+(totalAll>=0?'color:var(--green)':'color:var(--red)')+'">'+( totalAll>=0?'+':'')+fmtMoney(totalAll)+'</div>'
+      +'</div>'
+      +'<div style="background:'+(totalOutstanding>0?'#FEF2F2':'#F0FFF4')+';border-radius:8px;padding:12px;text-align:center">'
+        +'<div style="font-size:11px;color:var(--gray);margin-bottom:3px">ยอดค้างชำระรวม</div>'
+        +'<div style="font-size:18px;font-weight:700;'+(totalOutstanding>0?'color:var(--red)':'color:var(--green)')+'">'+( totalOutstanding>0?fmtMoney(totalOutstanding):'✅ ไม่มี')+'</div>'
+      +'</div>'
+    +'</div>'
+  +'</div>';
+
+  c.innerHTML=_summaryHtml+'<div class="card" style="overflow-x:auto;padding:0">'
     +'<table style="width:100%;border-collapse:collapse">'
     +'<thead><tr style="background:#F0F4F8;font-size:11.5px;color:var(--gray)">'
     +'<th style="padding:10px 12px;text-align:left">พนักงาน</th>'
