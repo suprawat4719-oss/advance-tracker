@@ -320,8 +320,8 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
 
 <script>
 // ── VERSION ───────────────────────────────────────────────────────────────────
-var BUILD_TIME = "2026-05-30 10:00";
-var BUILD_LABEL = "v3.19";
+var BUILD_TIME = "2026-05-30 13:00";
+var BUILD_LABEL = "v3.20";
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 var db, emps=[], requests=[], ledger=[], curId=null, imgB64=null, imgMime="image/jpeg", isOnline=false;
@@ -330,7 +330,7 @@ var LOCAL_KEY='advance_tracker_v2';
 var LOCAL_REQ='advance_requests_local';
 var LOCAL_LEDGER='advance_ledger_local';
 var _hasPendingChanges=false, _lastSaveAt=null, _editEmpId=null;
-// cache รายเดือนจาก advance_monthly — keyed by YYYY-MM
+// cache รายเดือน (filtered จาก requests[]) — keyed by YYYY-MM
 var monthlyRecords={};
 // advance_records: repayment + clear records สร้างโดย Advance App
 var advanceRecords=[];
@@ -425,6 +425,7 @@ async function migrateAdvanceEmployeeRefs() {
     for (var i = 0; i < requests.length; i++) {
       var req = requests[i];
       if (req.employeeCode) continue;
+      if (req._fromFinTx) continue; // Finance app เป็นเจ้าของ — ไม่แตะ advance_requests
       var emp = emps.find(function(e) { return e.id === (req.employeeId || req.empId); });
       if (!emp || !emp.employeeCode) continue;
       requests[i].employeeCode = emp.employeeCode;
@@ -874,76 +875,18 @@ function setLastSave(){
 // ── ADVANCE MONTHLY HELPERS ───────────────────────────────────────────────────
 function getMonthKey(d){ return (d||'').slice(0,7); }
 
-// โหลด advance_monthly/{monthKey}/records/ แล้ว merge เข้า requests array
+// สร้าง monthlyRecords cache จาก requests[] ที่โหลดจาก fin_transactions แล้ว
+// (ไม่ต้องเรียก Firestore เพราะข้อมูลอยู่ใน requests[] แล้ว)
 async function loadAdvanceByMonth(monthKey){
-  if(!db||!isOnline) return;
   if(isMonthLocked(monthKey)){
     monthlyRecords[monthKey]=[];
     addAuditLog('REJECT_LOAD_LOCKED_MONTH',monthKey,{source:'loadAdvanceByMonth'});
     return;
   }
-  try{
-    var snap=await db.collection('advance_monthly').doc(monthKey).collection('records').get();
-    if(snap.empty){ monthlyRecords[monthKey]=[]; return; }
-    var recs=snap.docs.map(function(d){ return Object.assign({id:d.id},d.data()); });
-    // กรองเฉพาะรายการ "เบิกล่วงหน้า" เท่านั้น — ใช้ isAdvanceRecord() เป็นตัวกรองกลาง
-    recs=recs.filter(isAdvanceRecord);
-    monthlyRecords[monthKey]=recs;
-    // แปลงเป็น advance_requests format แล้ว merge (dedup by id + empId+month+amount+ref+date)
-    var existing=new Set(requests.map(function(r){return r.id;}));
-    var existingKeys=new Set(requests.map(function(r){
-      var rp=r.referenceNo?('||ref:'+r.referenceNo):'';
-      var dp=r.transferDate?('||dt:'+r.transferDate):(r.date?('||dt:'+r.date):'');
-      return (r.employeeId||r.empId||'')+'|'+(r.monthKey||(r.date||'').slice(0,7))+'|'+Math.abs(Number(r.amount))+rp+dp;
-    }));
-    var newReqs=recs
-      .filter(function(r){
-        if(existing.has(r.id)) return false;
-        var rp=r.referenceNo?('||ref:'+r.referenceNo):'';
-        var dp=r.transferDate?('||dt:'+r.transferDate):'';
-        var key=(r.employeeId||'')+'|'+(r.monthKey||monthKey)+'|'+Math.abs(Number(r.amount))+rp+dp;
-        if(existingKeys.has(key)) return false;
-        existingKeys.add(key);
-        return true;
-      })
-      .map(function(r){
-        return {
-          id:r.id,
-          requestId:r.id,
-          employeeId:r.employeeId||'',
-          employeeName:r.employeeName||'',
-          amount:r.amount||0,
-          date:r.transferDate||monthKey+'-01',
-          transferDate:r.transferDate||'',
-          transferTime:r.transferTime||'',
-          category:r.category||'',
-          payrollType:r.payrollType||'',
-          bankName:r.bankName||'',
-          receiverName:r.receiverName||'',
-          referenceNo:r.referenceNo||'',
-          slipFileId:r.slipFileId||'',
-          slipUrl:r.slipUrl||'',
-          note:r.note||'',
-          ocrText:r.ocrText||'',
-          ocrConfidence:r.ocrConfidence||0,
-          monthKey:r.monthKey||monthKey,
-          status:(function(rid){
-            var ex=requests.find(function(rq){return rq.id===rid;});
-            return ex?ex.status:'approved';
-          }(r.id)),
-          syncStatus:r.syncStatus||'linked',
-          createdAt:r.createdAt||'',
-          _fromMonthly:true,
-        };
-      });
-    if(newReqs.length>0){
-      requests=requests.concat(newReqs);
-      saveLocalReqs();
-    }
-    console.log('[advance_monthly] loaded '+recs.length+' records for '+monthKey);
-  }catch(e){
-    console.warn('[advance_monthly] load failed for '+monthKey,e);
-  }
+  var recs=requests.filter(function(r){
+    return (r.monthKey||(r.date||'').slice(0,7))===monthKey && isAdvanceRecord(r);
+  });
+  monthlyRecords[monthKey]=recs;
 }
 
 // ── LOAD ALL ──────────────────────────────────────────────────────────────────
@@ -999,26 +942,25 @@ async function loadAll(){
       saveLocal();
       runEmployeeMigrationOnce(); // NEW: generate EMP codes if missing
     }
-    // โหลด advance_requests
+    // โหลด fin_transactions (employee_advance) — source of truth จาก Finance app (real-time)
+    var _ftReqs=[], _ftIds=new Set();
     try{
-      var rs=await db.collection('advance_requests').orderBy('createdAt','desc').limit(500).get();
-      if(!rs.empty){
-        var fbReqs=rs.docs.map(function(d){return Object.assign({id:d.id},d.data());});
-        // กรองเดือนล็อก
-        fbReqs=fbReqs.filter(function(r){
-          var mk=(r.monthKey||(r.date||'').slice(0,7));
-          if(mk&&isMonthLocked(mk)){
-            rejectedSyncLog.push({monthKey:mk,source:'loadAll/advance_requests',recordId:r.id,reason:'MONTH_LOCKED',rejectedAt:new Date().toISOString()});
-            return false;
-          }
-          return true;
-        });
-        var localIds=new Set(fbReqs.map(function(r){return r.id;}));
-        var localOnly=requests.filter(function(r){return !localIds.has(r.id);});
-        requests=[].concat(fbReqs,localOnly);
-        saveLocalReqs();
-      }
-    }catch(e){ console.warn('advance_requests load:',e); }
+      var ftSnap=await db.collection('fin_transactions').where('type','==','employee_advance').limit(1000).get();
+      _ftReqs=ftSnap.docs.map(function(d){return finTxToAdvReq(Object.assign({id:d.id},d.data()));});
+      _ftIds=new Set(_ftReqs.map(function(r){return r.id;}));
+    }catch(e){ console.warn('fin_transactions load:',e); }
+    // advance_requests ที่ advance_tracker สร้างเองโดยตรง (ยังคงรองรับ — แยก try/catch)
+    var _ownReqs=[];
+    try{
+      var ownSnap=await db.collection('advance_requests').where('createdBy','==','advance_tracker').limit(500).get();
+      _ownReqs=ownSnap.docs.map(function(d){return Object.assign({id:d.id},d.data());})
+        .filter(function(r){return !_ftIds.has(r.id);});
+    }catch(e){ console.warn('advance_requests(own) load:',e); }
+    if(_ftReqs.length>0||_ownReqs.length>0){
+      var _localOnly=requests.filter(function(r){return r._localOnly&&!_ftIds.has(r.id);});
+      requests=_ftReqs.concat(_ownReqs,_localOnly);
+      saveLocalReqs();
+    }
     // โหลด advance_ledger
     try{
       var ls=await db.collection('advance_ledger').orderBy('date','desc').limit(1000).get();
@@ -1093,31 +1035,18 @@ async function syncDown(){
       }
     });
     saveLocal();
-    var rs=await db.collection('advance_requests').orderBy('createdAt','desc').limit(500).get();
-    if(!rs.empty){
-      var allReqs=rs.docs.map(function(d){return Object.assign({id:d.id},d.data());});
-      // กรองรายการที่เดือนถูกล็อก — ห้าม overwrite ข้อมูลล็อก
-      var rejCount=0;
-      allReqs=allReqs.filter(function(r){
-        var mk=(r.monthKey||(r.date||'').slice(0,7));
-        if(isMonthLocked(mk)){
-          rejectedSyncLog.push({monthKey:mk,source:'advance_requests',recordId:r.id,amount:r.amount,date:r.date,reason:'MONTH_LOCKED',rejectedAt:new Date().toISOString()});
-          rejCount++; return false;
-        }
-        return true;
-      });
-      if(rejCount>0){ addAuditLog('REJECT_SYNC_LOCKED_MONTH','multiple',{count:rejCount,source:'advance_requests'}); }
-      // รวมกับ local ที่ยังไม่ถูก sync (มี _localOnly flag) เท่านั้น
-      // ไม่เอา id ที่ Firestore ไม่มี — ถือว่าถูกลบแล้ว
-      var localOnly=requests.filter(function(r){
-        if(allReqs.some(function(f){return f.id===r.id;})) return false; // มีใน server แล้ว
-        if(!r._localOnly) return false; // ไม่ใช่ local-only → ถูกลบจาก server
-        var mk=(r.monthKey||(r.date||'').slice(0,7));
-        return !isMonthLocked(mk);
-      });
-      requests=[].concat(allReqs,localOnly);
-      saveLocalReqs();
-    }
+    var ftSnap2=await db.collection('fin_transactions').where('type','==','employee_advance').limit(1000).get();
+    var ftReqs2=ftSnap2.docs.map(function(d){return finTxToAdvReq(Object.assign({id:d.id},d.data()));});
+    var ftIds2=new Set(ftReqs2.map(function(r){return r.id;}));
+    var ownReqs2=[];
+    try{
+      var ownSnap2=await db.collection('advance_requests').where('createdBy','==','advance_tracker').limit(500).get();
+      ownReqs2=ownSnap2.docs.map(function(d){return Object.assign({id:d.id},d.data());})
+        .filter(function(r){return !ftIds2.has(r.id);});
+    }catch(e2){ console.warn('advance_requests(own) syncDown:',e2); }
+    var localOnly2=requests.filter(function(r){return r._localOnly&&!ftIds2.has(r.id);});
+    requests=ftReqs2.concat(ownReqs2,localOnly2);
+    saveLocalReqs();
     var ls=await db.collection('advance_ledger').orderBy('date','desc').limit(1000).get();
     if(!ls.empty){
       ledger=ls.docs.map(function(d){return Object.assign({id:d.id},d.data());});
@@ -1168,9 +1097,10 @@ async function saveToFirebase(){
       });
       await batch.commit();
     }
-    // บันทึก requests ที่ยังไม่ sync (ไม่ส่งเดือนล็อก)
+    // บันทึก requests ที่ advance_tracker สร้างเอง และยังไม่ sync (ไม่ส่ง Finance app records)
     var pendingReqs=requests.filter(function(r){
       if(!r._localOnly) return false;
+      if(r._fromFinTx) return false; // Finance app เป็นเจ้าของ — ไม่แตะ
       var mk=(r.monthKey||(r.date||'').slice(0,7));
       return !mk||!isMonthLocked(mk);
     });
@@ -1279,18 +1209,47 @@ function isAdvanceRecord(r){
   return true;
 }
 
+// ── FIN_TRANSACTIONS ADAPTER ─────────────────────────────────────────────────
+// แปลง fin_transactions record เป็น advance_requests format ที่ advance app ใช้
+function finTxToAdvReq(tx){
+  return {
+    id:tx.id,
+    requestId:tx.id,
+    employeeId:tx.employeeId||tx.empId||'',
+    employeeCode:tx.employeeCode||'',
+    employeeName:tx.employeeName||tx.party||'',
+    amount:Number(tx.amount)||0,
+    date:tx.date||'',
+    transferDate:tx.transferDate||tx.date||'',
+    transferTime:tx.transferTime||tx.slipTime||'',
+    category:tx.category||'',
+    payrollType:tx.payrollType||'employee_advance',
+    type:'employee_advance',
+    bankName:tx.bankName||tx.method||'',
+    receiverName:tx.receiverName||'',
+    referenceNo:tx.referenceNo||tx.ref||'',
+    slipFileId:tx.slipFileId||'',
+    slipUrl:tx.slipUrl||tx.imgUrl||'',
+    note:tx.note||'',
+    ocrText:tx.ocrText||'',
+    ocrConfidence:Number(tx.ocrConfidence)||0,
+    monthKey:(tx.date||'').slice(0,7),
+    status:'approved',
+    syncStatus:'linked',
+    createdBy:'finance_app',
+    createdAt:tx.createdAt||'',
+    _fromFinTx:true,
+  };
+}
+
 // ── MONTH NAVIGATION ──────────────────────────────────────────────────────────
 function moLabel(m){ var mn=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']; var p=m.split('-'); return mn[+p[1]-1]+' '+(+p[0]+543); }
 function navMo(dir){
   var p=curMo.split('-'); var y=+p[0],mo=+p[1]; mo+=dir;
   if(mo>12){mo=1;y++;}else if(mo<1){mo=12;y--;}
   curMo=y+'-'+('0'+mo).slice(-2);
-  // โหลด advance_monthly ของเดือนใหม่ถ้ายังไม่มี
-  if(db&&isOnline&&!monthlyRecords[curMo]){
-    loadAdvanceByMonth(curMo).then(function(){ renderDash(); renderPayroll(); renderExp(); });
-  } else {
-    renderDash(); renderPayroll(); renderExp();
-  }
+  loadAdvanceByMonth(curMo); // sync — filters from in-memory requests[]
+  renderDash(); renderPayroll(); renderExp();
 }
 function moNavHtml(){
   var lockBadge=isMonthLocked(curMo)
@@ -1304,7 +1263,7 @@ function moNavHtml(){
     +'</div>';
 }
 
-// ดึง requests ของพนักงานคนนี้ (advance_requests เป็น source of truth)
+// ดึง requests ของพนักงานคนนี้ (fin_transactions เป็น source of truth ผ่าน requests[])
 function getMergedTx(emp){
   var txs=[];
   // 1. advance_requests (primary source — เฉพาะรายการเบิกล่วงหน้า)
@@ -1777,20 +1736,19 @@ async function delReq(reqId){
   if(isMonthClosed(eid0,mk0)){alert('เดือนนี้ปิดแล้ว ไม่สามารถแก้ไขได้');return;}
   if(!assertMonthEditable(mk0)) return;
   if(!confirm('ลบคำขอนี้?'))return;
-  // ลบออกจาก employee.transactions ด้วย
-  var req=requests.find(function(r){return r.id===reqId;});
-  if(req){
-    var emp=emps.find(function(e){return e.id===(req.employeeId||req.empId);});
+  // ลบออกจาก employee.transactions ด้วย (ใช้ req0 ที่ validated แล้ว)
+  if(req0){
+    var emp=emps.find(function(e){return e.id===(req0.employeeId||req0.empId);});
     if(emp&&emp.transactions){
-      emp.transactions=emp.transactions.filter(function(t){return t.id!==reqId&&t.ref!==req.referenceNo;});
+      emp.transactions=emp.transactions.filter(function(t){return t.id!==reqId&&t.ref!==req0.referenceNo;});
     }
   }
   requests=requests.filter(function(r){return r.id!==reqId;});
   saveLocal(); saveLocalReqs(); _hasPendingChanges=true;
-  if(isOnline&&db){
+  if(isOnline&&db&&req0&&!req0._fromFinTx){
     try{await db.collection('advance_requests').doc(reqId).delete();}catch(err){}
   }
-  renderDash(); toast('🗑️ ลบแล้ว');
+  renderDash(); toast(req0&&req0._fromFinTx?'⚠️ ลบจาก Local เท่านั้น — ต้องลบใน Finance app ด้วย':'🗑️ ลบแล้ว');
 }
 
 // ── APPROVE / REJECT ──────────────────────────────────────────────────────────
@@ -1826,7 +1784,7 @@ async function setReqStatus(reqId,status){
   requests[idx].status=status;
   requests[idx].approvedAt=new Date().toISOString();
   saveLocalReqs(); _hasPendingChanges=true;
-  if(isOnline&&db){
+  if(isOnline&&db&&!requests[idx]._fromFinTx){
     try{await db.collection('advance_requests').doc(reqId).update({status:status,approvedAt:requests[idx].approvedAt,syncStatus:'linked'});}
     catch(err){}
   }
