@@ -1361,6 +1361,7 @@ function renderPayroll(){
     var ex=getEx(emp,curMo);var de=getDe(emp,curMo);
     var moSal=getMoSalary(emp,curMo);var moCar=getMoCarry(emp,curMo);
     var totalAdv=approved.reduce(function(s,t){return s+Number(t.amount);},0);
+    var moRepaid=advanceRecords.filter(function(r){return r.employeeId===emp.id&&r.status!=='cancelled'&&(r.type==='repayment'||r.type==='clear')&&r.monthKey===curMo;}).reduce(function(s,r){return s+Number(r.amount||0);},0);
     // Option A: advance หักเต็มจำนวน — moRepaid บันทึกในบัญชีเบิกเท่านั้น ไม่กระทบ net salary
     var totNet=totalAdv;
     var totalExtra=(ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0);
