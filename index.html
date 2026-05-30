@@ -320,8 +320,8 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
 
 <script>
 // ── VERSION ───────────────────────────────────────────────────────────────────
-var BUILD_TIME = "2026-05-30 09:00";
-var BUILD_LABEL = "v3.18";
+var BUILD_TIME = "2026-05-30 12:00";
+var BUILD_LABEL = "v3.20";
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 var db, emps=[], requests=[], ledger=[], curId=null, imgB64=null, imgMime="image/jpeg", isOnline=false;
@@ -1004,15 +1004,8 @@ async function loadAll(){
       var rs=await db.collection('advance_requests').orderBy('createdAt','desc').limit(500).get();
       if(!rs.empty){
         var fbReqs=rs.docs.map(function(d){return Object.assign({id:d.id},d.data());});
-        // กรองเดือนล็อก
-        fbReqs=fbReqs.filter(function(r){
-          var mk=(r.monthKey||(r.date||'').slice(0,7));
-          if(mk&&isMonthLocked(mk)){
-            rejectedSyncLog.push({monthKey:mk,source:'loadAll/advance_requests',recordId:r.id,reason:'MONTH_LOCKED',rejectedAt:new Date().toISOString()});
-            return false;
-          }
-          return true;
-        });
+        // โหลดทุก advance_requests รวมถึงเดือนล็อก — เพื่อคำนวณยอดสะสมถูกต้อง
+        // write guards อยู่ที่ assertMonthEditable() ทุก write path แล้ว
         var localIds=new Set(fbReqs.map(function(r){return r.id;}));
         var localOnly=requests.filter(function(r){return !localIds.has(r.id);});
         requests=[].concat(fbReqs,localOnly);
@@ -1032,17 +1025,7 @@ async function loadAll(){
       var ars=await db.collection('advance_records').limit(2000).get();
       if(!ars.empty){
         var fbAdvRecs=ars.docs.map(function(d){return Object.assign({id:d.id},d.data());});
-        // กรอง advance_records ในเดือนที่ล็อก
-        var arRejCount=0;
-        fbAdvRecs=fbAdvRecs.filter(function(r){
-          var mk=(r.monthKey||(r.date||'').slice(0,7));
-          if(mk&&isMonthLocked(mk)){
-            rejectedSyncLog.push({monthKey:mk,source:'loadAll/advance_records',recordId:r.id,reason:'MONTH_LOCKED',rejectedAt:new Date().toISOString()});
-            arRejCount++; return false;
-          }
-          return true;
-        });
-        if(arRejCount>0) addAuditLog('REJECT_SYNC_LOCKED_MONTH','multiple',{count:arRejCount,source:'loadAll/advance_records'});
+        // โหลดทุก advance_records รวมถึงเดือนล็อก — เพื่อคำนวณยอดหักคืน/เคลียร์ถูกต้อง
         var fbArIds=new Set(fbAdvRecs.map(function(r){return r.id;}));
         var localOnlyAr=advanceRecords.filter(function(r){return !fbArIds.has(r.id);});
         advanceRecords=fbAdvRecs.concat(localOnlyAr);
@@ -1096,17 +1079,7 @@ async function syncDown(){
     var rs=await db.collection('advance_requests').orderBy('createdAt','desc').limit(500).get();
     if(!rs.empty){
       var allReqs=rs.docs.map(function(d){return Object.assign({id:d.id},d.data());});
-      // กรองรายการที่เดือนถูกล็อก — ห้าม overwrite ข้อมูลล็อก
-      var rejCount=0;
-      allReqs=allReqs.filter(function(r){
-        var mk=(r.monthKey||(r.date||'').slice(0,7));
-        if(isMonthLocked(mk)){
-          rejectedSyncLog.push({monthKey:mk,source:'advance_requests',recordId:r.id,amount:r.amount,date:r.date,reason:'MONTH_LOCKED',rejectedAt:new Date().toISOString()});
-          rejCount++; return false;
-        }
-        return true;
-      });
-      if(rejCount>0){ addAuditLog('REJECT_SYNC_LOCKED_MONTH','multiple',{count:rejCount,source:'advance_requests'}); }
+      // โหลดทุก advance_requests รวมถึงเดือนล็อก — เพื่อคำนวณยอดสะสมถูกต้อง
       // รวมกับ local ที่ยังไม่ถูก sync (มี _localOnly flag) เท่านั้น
       // ไม่เอา id ที่ Firestore ไม่มี — ถือว่าถูกลบแล้ว
       var localOnly=requests.filter(function(r){
@@ -1129,17 +1102,8 @@ async function syncDown(){
       var arsDown=await db.collection('advance_records').limit(2000).get();
       if(!arsDown.empty){
         var rawAdvRecs=arsDown.docs.map(function(d){return Object.assign({id:d.id},d.data());});
-        // กรอง advance_records ในเดือนที่ล็อก
-        var sdArRej=0;
-        advanceRecords=rawAdvRecs.filter(function(r){
-          var mk=(r.monthKey||(r.date||'').slice(0,7));
-          if(mk&&isMonthLocked(mk)){
-            rejectedSyncLog.push({monthKey:mk,source:'syncDown/advance_records',recordId:r.id,reason:'MONTH_LOCKED',rejectedAt:new Date().toISOString()});
-            sdArRej++; return false;
-          }
-          return true;
-        });
-        if(sdArRej>0) addAuditLog('REJECT_SYNC_LOCKED_MONTH','multiple',{count:sdArRej,source:'syncDown/advance_records'});
+        // โหลดทุก advance_records รวมถึงเดือนล็อก — เพื่อคำนวณยอดหักคืน/เคลียร์ถูกต้อง
+        advanceRecords=rawAdvRecs;
         saveLocalAdvRecs();
       }
     }catch(e){ console.warn('advance_records syncDown:',e); }
@@ -1518,33 +1482,20 @@ function getMoTotalAdv(emp, mo){
 }
 
 // "ยกมาเดือนก่อน" = net เดือนก่อนติดลบ → ยกมาหักเดือนนี้
-// คำนวณ carry จริง 2 ชั้น (prevPrev→prev→mo) โดยไม่ recursive
+// iterate ทุกเดือนที่มีข้อมูล (monthData) ตั้งแต่เก่าสุด → chain carry ถูกต้องทุกเดือน
 function getMoCarry(emp, mo){
-  var prevMo=shiftMonth(mo,-1);
-  var hasPrevData=emp.monthData&&emp.monthData[prevMo];
-  if(!hasPrevData){
-    return emp.carry||0;
+  var allMo=Object.keys(emp.monthData||{})
+    .filter(function(m){return m<mo;})
+    .sort();
+  if(allMo.length===0) return emp.carry||0;
+  var carry=emp.carry||0;
+  for(var i=0;i<allMo.length;i++){
+    var m=allMo[i];
+    var adv=getMoTotalAdv(emp,m);
+    var net=calcNetRaw(emp,m,adv,carry);
+    carry=net<0?Math.abs(net):0;
   }
-
-  // หา carry ที่ถูกต้องของ prevMo โดยดูจาก prevPrevMo (1 ชั้น)
-  var prevPrevMo=shiftMonth(prevMo,-1);
-  var hasPrevPrevData=emp.monthData&&emp.monthData[prevPrevMo];
-  var prevCarry=hasPrevPrevData?0:(emp.carry||0);
-  if(hasPrevPrevData){
-    var ppAdv=getMoTotalAdv(emp,prevPrevMo);
-    // Option A: advance หักเต็มจำนวน — moRepaid ไม่กระทบ carry
-    var ppAdvNet=ppAdv;
-    var ppNet=calcNetRaw(emp,prevPrevMo,ppAdvNet,emp.carry||0);
-    prevCarry=ppNet<0?Math.abs(ppNet):0;
-  }
-
-  // คำนวณ net จริงของ prevMo ด้วย prevCarry ที่ถูกต้อง
-  var prevAdv=getMoTotalAdv(emp,prevMo);
-  // Option A: advance หักเต็มจำนวน — moRepaid ไม่กระทบ carry
-  var prevAdvNet=prevAdv;
-  var prevNet=calcNetRaw(emp,prevMo,prevAdvNet,prevCarry);
-
-  return prevNet<0?Math.abs(prevNet):0;
+  return carry;
 }
 
 function renderDash(){
