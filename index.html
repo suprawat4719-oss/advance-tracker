@@ -342,8 +342,8 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
 
 <script>
 // ── VERSION ───────────────────────────────────────────────────────────────────
-var BUILD_TIME = "2026-05-30 16:00";
-var BUILD_LABEL = "v3.21";
+var BUILD_TIME = "2026-05-30 17:00";
+var BUILD_LABEL = "v3.22";
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 var db, emps=[], requests=[], ledger=[], curId=null, imgB64=null, imgMime="image/jpeg", isOnline=false;
@@ -591,6 +591,24 @@ async function lockMonth(monthKey){
   var reason=prompt('กรอกเหตุผลการปิดเดือน '+moLabel(monthKey)+':');
   if(!reason) return;
   if(!confirm('⚠️ ยืนยันปิดเดือน '+moLabel(monthKey)+'?\n\nหลังปิดแล้วจะไม่สามารถ:\n• เพิ่ม / แก้ไข / ลบรายการใดๆ\n• sync ข้อมูลจาก Finance App\n• อัปโหลดสลิปย้อนหลัง\n\nหากต้องการแก้ไขต้องปลดล็อกด้วยรหัส Admin')) return;
+  // snapshot เงินเดือนทุกคนที่ยังไม่มี per-month salary — ป้องกันการเปลี่ยนแปลงย้อนหลัง
+  var empPatches=[];
+  emps.forEach(function(e){
+    if(!e.monthData) e.monthData={};
+    if(!e.monthData[monthKey]) e.monthData[monthKey]={};
+    if(e.monthData[monthKey].salary==null){
+      e.monthData[monthKey].salary=e.salary||0;
+      empPatches.push(e);
+    }
+  });
+  if(empPatches.length>0){
+    saveLocal(); _hasPendingChanges=true;
+    if(isOnline&&db){
+      for(var i=0;i<empPatches.length;i++){
+        try{await db.collection('employees').doc(empPatches[i].id).set({monthData:empPatches[i].monthData},{merge:true});}catch(err){}
+      }
+    }
+  }
   var now=new Date().toISOString();
   monthLocks[monthKey]={locked:true,lockedAt:now,lockedBy:'admin',reason:reason,payrollPaid:true};
   saveLocalLocks();
@@ -669,12 +687,16 @@ async function closeCurMonth(){
   var emp=getEmp(); if(!emp) return;
   if(isMonthClosed(emp.id,curMo)){toast('🔒 เดือนนี้ปิดแล้ว');return;}
   if(!confirm('ยืนยันปิดเดือน '+moLabel(curMo)+' ?\nเมื่อปิดแล้วจะแก้ไขไม่ได้')) return;
+  // snapshot เงินเดือนถ้ายังไม่มี per-month salary — ป้องกันการเปลี่ยนแปลงย้อนหลัง
+  if(!emp.monthData) emp.monthData={};
+  if(!emp.monthData[curMo]) emp.monthData[curMo]={};
+  if(emp.monthData[curMo].salary==null) emp.monthData[curMo].salary=emp.salary||0;
   if(!Array.isArray(emp.closedMonths)) emp.closedMonths=[];
   emp.closedMonths.push(curMo);
   saveLocal(); _hasPendingChanges=true;
   if(isOnline&&db){
     try{
-      await db.collection('employees').doc(emp.id).set({closedMonths:emp.closedMonths},{merge:true});
+      await db.collection('employees').doc(emp.id).set({closedMonths:emp.closedMonths,monthData:emp.monthData||{}},{merge:true});
     }catch(e){console.warn('[closeCurMonth]',e);}
   }
   renderDash(); renderPayroll();
