@@ -217,7 +217,10 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
 <div class="pg" id="pg-payroll">
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
     <div class="stitle">💰 ตารางเงินเดือนพนักงาน</div>
-    <button class="btn btn-p" style="font-size:12px;padding:8px 14px" onclick="printPayrollAll()">📄 พิมพ์สลิปทุกคน</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-p" style="font-size:12px;padding:8px 14px" onclick="printPayrollSummary()">🖨️ พิมพ์รายงานสรุป</button>
+      <button class="btn btn-p" style="font-size:12px;padding:8px 14px" onclick="printPayrollAll()">📄 พิมพ์สลิปทุกคน</button>
+    </div>
   </div>
   <div id="mo-nav-pay"></div>
   <div id="payroll-table"></div>
@@ -351,8 +354,8 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
 
 <script>
 // ── VERSION ───────────────────────────────────────────────────────────────────
-var BUILD_TIME = "2026-06-01 12:00";
-var BUILD_LABEL = "v3.24";
+var BUILD_TIME = "2026-06-01 16:00";
+var BUILD_LABEL = "v3.26";
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 var db, emps=[], requests=[], ledger=[], curId=null, imgB64=null, imgMime="image/jpeg", isOnline=false;
@@ -1480,7 +1483,7 @@ function renderPayroll(){
     // Option A: advance หักเต็มจำนวน
     var totNet2=totalAdv2;
     var net=sal2+((ex2.ot||0)+(ex2.travel||0)+(ex2.phone||0)+(ex2.other||0))-((de2.absent||0)+(de2.insurance||0)+(de2.social||0))-car2-totNet2;
-    return s+net;
+    return s+Math.max(0,net);
   },0);
 
   var totalOutstanding=activeEmps.reduce(function(s,e){return s+calculateEmployeeAdvance(e.id).outstanding;},0);
@@ -2340,6 +2343,167 @@ function printSlip(eidOverride){
   if(w){w.document.write(html);w.document.close();}
   else toast('⚠️ กรุณาอนุญาต Popup ในเบราว์เซอร์ (คลิกที่แถบด้านบนเพื่ออนุญาต)');
   }catch(err){toast('❌ เกิดข้อผิดพลาด: '+err.message);console.error('[printSlip]',err);}
+}
+
+function printPayrollSummary(){
+  try{
+  var activeEmps=emps.filter(function(e){return !e.suspended;});
+  if(!activeEmps.length){toast('ไม่มีพนักงาน');return;}
+
+  // ── คำนวณยอดรวม (เหมือน renderPayroll) ──
+  var _ps={sal:0,ot:0,travel:0,phone:0,other:0,absent:0,insurance:0,social:0,carry:0,adv:0};
+  activeEmps.forEach(function(_e){
+    var _ex=getEx(_e,curMo);var _de=getDe(_e,curMo);
+    var _appr=getMergedTx(_e).filter(function(t){return (t.date||'').startsWith(curMo)&&(!t._fromReq||(t._fromReq&&t.status==='approved'));});
+    _ps.sal+=getMoSalary(_e,curMo);
+    _ps.ot+=(_ex.ot||0);_ps.travel+=(_ex.travel||0);_ps.phone+=(_ex.phone||0);_ps.other+=(_ex.other||0);
+    _ps.absent+=(_de.absent||0);_ps.insurance+=(_de.insurance||0);_ps.social+=(_de.social||0);
+    _ps.carry+=getMoCarry(_e,curMo);
+    _ps.adv+=_appr.reduce(function(s,t){return s+Number(t.amount);},0);
+  });
+  var _psExtra=_ps.ot+_ps.travel+_ps.phone+_ps.other;
+  var _psDeduct=_ps.absent+_ps.insurance+_ps.social;
+  var totalAll=activeEmps.reduce(function(s,emp){
+    var ex2=getEx(emp,curMo);var de2=getDe(emp,curMo);
+    var sal2=getMoSalary(emp,curMo);var car2=getMoCarry(emp,curMo);
+    var appr2=getMergedTx(emp).filter(function(t){return (t.date||'').startsWith(curMo)&&(!t._fromReq||(t._fromReq&&t.status==='approved'));});
+    var adv2=appr2.reduce(function(s2,t){return s2+Number(t.amount);},0);
+    var net=sal2+((ex2.ot||0)+(ex2.travel||0)+(ex2.phone||0)+(ex2.other||0))-((de2.absent||0)+(de2.insurance||0)+(de2.social||0))-car2-adv2;
+    return s+Math.max(0,net);
+  },0);
+  var totalOutstanding=activeEmps.reduce(function(s,e){return s+calculateEmployeeAdvance(e.id).outstanding;},0);
+
+  // ── แถวตารางพนักงาน ──
+  var tbRows=activeEmps.map(function(emp,idx){
+    var allTx=getMergedTx(emp);
+    var moTx=allTx.filter(function(t){return (t.date||'').startsWith(curMo);});
+    var approved=moTx.filter(function(t){return !t._fromReq||(t._fromReq&&t.status==='approved');});
+    var pending=moTx.filter(function(t){return t.status==='pending_approval';});
+    var ex=getEx(emp,curMo);var de=getDe(emp,curMo);
+    var moSal=getMoSalary(emp,curMo);var moCar=getMoCarry(emp,curMo);
+    var totalAdv=approved.reduce(function(s,t){return s+Number(t.amount);},0);
+    var totNet=totalAdv;
+    var totalExtra=(ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0);
+    var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0);
+    var net=moSal+totalExtra-totalDeduct-moCar-totNet;
+    var netColor=net<0?'#DC2626':'#16A34A';
+    var advCalc=calculateEmployeeAdvance(emp.id);
+    var outColor=advCalc.outstanding>0?'#DC2626':'#16A34A';
+    var pendNote=pending.length?' <span style="font-size:10px;color:#D97706">('+pending.length+' รอ)</span>':'';
+    return '<tr style="border-bottom:1px solid #e5e7eb;background:'+(idx%2===0?'#fff':'#f9fafb')+'">'
+      +'<td style="padding:8px 10px">'+(idx+1)+'</td>'
+      +'<td style="padding:8px 10px;font-weight:600">'
+        +(emp.employeeCode?'<span style="font-size:10px;color:#3B82F6;font-family:monospace">'+emp.employeeCode+'</span> ':'')
+        +emp.name+(emp.dept?'<br><span style="font-size:10px;color:#6B7280">'+emp.dept+'</span>':'')
+        +(emp.bank?'<br><span style="font-size:10px;color:#3B82F6">🏦 '+emp.bank+'</span>':'')
+      +'</td>'
+      +'<td style="padding:8px 10px;text-align:right">'+fmt(moSal)+'</td>'
+      +'<td style="padding:8px 10px;text-align:right;color:#16A34A">'+fmt(totalExtra)+'</td>'
+      +'<td style="padding:8px 10px;text-align:right;color:#DC2626">'+fmt(totalDeduct+moCar)+'</td>'
+      +'<td style="padding:8px 10px;text-align:right;color:#3B82F6">'+fmt(totNet)+pendNote+'</td>'
+      +'<td style="padding:8px 10px;text-align:right;font-weight:700;color:'+netColor+'">'+(net>=0?'+':'')+fmt(net)+'</td>'
+      +'<td style="padding:8px 10px;text-align:right;color:'+outColor+'">'+(advCalc.outstanding>0?fmt(advCalc.outstanding):'—')+'</td>'
+    +'</tr>';
+  }).join('');
+
+  var today=new Date();
+  var dateStr=today.getDate()+'/'+('0'+(today.getMonth()+1)).slice(-2)+'/'+(today.getFullYear()+543);
+
+  var html='<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">'
+    +'<title>รายงานสรุปเงินเดือน '+moLabel(curMo)+'</title><style>'
+    +'*{margin:0;padding:0;box-sizing:border-box}'
+    +'body{font-family:sans-serif;padding:24px;color:#1a1a1a;font-size:13px}'
+    +'.hd{text-align:center;border-bottom:3px solid #0D1B2A;padding-bottom:12px;margin-bottom:18px}'
+    +'.hd h1{font-size:20px;color:#0D1B2A;margin-bottom:4px}'
+    +'.hd p{font-size:11px;color:#666}'
+    +'.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}'
+    +'.scard{border:1px solid #e5e7eb;border-radius:8px;padding:10px;text-align:center}'
+    +'.scard .label{font-size:10px;color:#6B7280;margin-bottom:4px}'
+    +'.scard .value{font-size:15px;font-weight:700}'
+    +'.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}'
+    +'.dbox{border:1px solid #e5e7eb;border-radius:8px;padding:10px}'
+    +'.dbox h3{font-size:10px;font-weight:700;color:#374151;margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px}'
+    +'.drow{display:flex;justify-content:space-between;padding:3px 0;font-size:12px;border-bottom:1px solid #f3f4f6}'
+    +'.drow:last-child{border-bottom:none}'
+    +'.total-bar{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}'
+    +'.tbar{border-radius:8px;padding:12px;text-align:center}'
+    +'.tbar .tlabel{font-size:11px;color:#6B7280;margin-bottom:4px}'
+    +'.tbar .tvalue{font-size:20px;font-weight:700}'
+    +'table{width:100%;border-collapse:collapse;font-size:12px}'
+    +'thead tr{background:#0D1B2A;color:#fff}'
+    +'th{padding:8px 10px;text-align:left}'
+    +'th.r{text-align:right}'
+    +'tfoot tr{background:#F0F4F8;font-weight:700}'
+    +'td.r{text-align:right}'
+    +'.footer{text-align:center;font-size:10px;color:#9CA3AF;margin-top:16px;padding-top:10px;border-top:1px solid #e5e7eb}'
+    +'@media print{body{padding:10px}button{display:none}}'
+    +'</style></head><body>'
+
+    +'<div class="hd">'
+      +'<h1>📊 รายงานสรุปการจ่ายเงินเดือน</h1>'
+      +'<p>ประจำเดือน '+moLabel(curMo)+' &nbsp;·&nbsp; วันที่พิมพ์ '+dateStr+' &nbsp;·&nbsp; '+BUILD_LABEL+'</p>'
+    +'</div>'
+
+    +'<div class="summary-grid">'
+      +'<div class="scard"><div class="label">เงินเดือนรวม</div><div class="value" style="color:#0D1B2A">฿'+fmt(_ps.sal)+'</div></div>'
+      +'<div class="scard"><div class="label">รายรับเพิ่มรวม</div><div class="value" style="color:#16A34A">+฿'+fmt(_psExtra)+'</div></div>'
+      +'<div class="scard"><div class="label">รายการหักรวม</div><div class="value" style="color:#DC2626">-฿'+fmt(_psDeduct+_ps.carry)+'</div></div>'
+      +'<div class="scard"><div class="label">เบิกล่วงหน้ารวม</div><div class="value" style="color:#3B82F6">฿'+fmt(_ps.adv)+'</div></div>'
+    +'</div>'
+
+    +'<div class="detail-grid">'
+      +'<div class="dbox"><h3>💰 รายรับเพิ่มเติม</h3>'
+        +'<div class="drow"><span style="color:#6B7280">ค่าล่วงเวลา (OT)</span><span style="color:#16A34A;font-weight:600">+฿'+fmt(_ps.ot)+'</span></div>'
+        +'<div class="drow"><span style="color:#6B7280">ค่าเดินทาง</span><span style="color:#16A34A;font-weight:600">+฿'+fmt(_ps.travel)+'</span></div>'
+        +'<div class="drow"><span style="color:#6B7280">ค่าโทรศัพท์</span><span style="color:#16A34A;font-weight:600">+฿'+fmt(_ps.phone)+'</span></div>'
+        +'<div class="drow"><span style="color:#6B7280">รายรับอื่นๆ</span><span style="color:#16A34A;font-weight:600">+฿'+fmt(_ps.other)+'</span></div>'
+      +'</div>'
+      +'<div class="dbox"><h3>📉 รายการหัก</h3>'
+        +'<div class="drow"><span style="color:#6B7280">ขาด/ลา/มาสาย</span><span style="color:#DC2626;font-weight:600">-฿'+fmt(_ps.absent)+'</span></div>'
+        +'<div class="drow"><span style="color:#6B7280">หักเงินประกัน</span><span style="color:#DC2626;font-weight:600">-฿'+fmt(_ps.insurance)+'</span></div>'
+        +'<div class="drow"><span style="color:#6B7280">ประกันสังคม</span><span style="color:#DC2626;font-weight:600">-฿'+fmt(_ps.social)+'</span></div>'
+        +'<div class="drow"><span style="color:#6B7280">ยกมาเดือนก่อน</span><span style="color:#DC2626;font-weight:600">-฿'+fmt(_ps.carry)+'</span></div>'
+      +'</div>'
+    +'</div>'
+
+    +'<div class="total-bar">'
+      +'<div class="tbar" style="background:'+(totalAll>=0?'#F0FFF4':'#FEF2F2')+'">'
+        +'<div class="tlabel">สุทธิจ่ายจริงรวม</div>'
+        +'<div class="tvalue" style="color:'+(totalAll>=0?'#16A34A':'#DC2626')+'">'+(totalAll>=0?'+':'')+' ฿'+fmt(totalAll)+'</div>'
+      +'</div>'
+      +'<div class="tbar" style="background:'+(totalOutstanding>0?'#FEF2F2':'#F0FFF4')+'">'
+        +'<div class="tlabel">ยอดค้างชำระรวม</div>'
+        +'<div class="tvalue" style="color:'+(totalOutstanding>0?'#DC2626':'#16A34A')+'">'+(totalOutstanding>0?'฿'+fmt(totalOutstanding):'✅ ไม่มี')+'</div>'
+      +'</div>'
+    +'</div>'
+
+    +'<table>'
+      +'<thead><tr>'
+        +'<th style="width:32px">#</th>'
+        +'<th>พนักงาน</th>'
+        +'<th class="r">เงินเดือน</th>'
+        +'<th class="r">รายรับเพิ่ม</th>'
+        +'<th class="r">หัก+ยกมา</th>'
+        +'<th class="r">เบิกรวม</th>'
+        +'<th class="r">สุทธิ</th>'
+        +'<th class="r">คงค้าง</th>'
+      +'</tr></thead>'
+      +'<tbody>'+tbRows+'</tbody>'
+      +'<tfoot><tr>'
+        +'<td colspan="6" style="padding:8px 10px">รวมสุทธิจ่ายจริงทุกคน</td>'
+        +'<td class="r" style="padding:8px 10px;font-size:14px;color:'+(totalAll>=0?'#16A34A':'#DC2626')+'">'+(totalAll>=0?'+':'')+fmt(totalAll)+'</td>'
+        +'<td class="r" style="padding:8px 10px;color:'+(totalOutstanding>0?'#DC2626':'#16A34A')+'">'+(totalOutstanding>0?fmt(totalOutstanding):'—')+'</td>'
+      +'</tr></tfoot>'
+    +'</table>'
+
+    +'<div class="footer">เอกสารนี้ออกโดยระบบเบิกล่วงหน้า · '+BUILD_LABEL+' · พิมพ์วันที่ '+dateStr+'</div>'
+    +'<script>window.onload=function(){window.print();}<\/script>'
+    +'</body></html>';
+
+  var w=window.open('','_blank');
+  if(w){w.document.write(html);w.document.close();}
+  else toast('⚠️ กรุณาอนุญาต Popup ในเบราว์เซอร์');
+  }catch(err){toast('❌ เกิดข้อผิดพลาด: '+err.message);console.error('[printPayrollSummary]',err);}
 }
 
 function expCSV(eid){
