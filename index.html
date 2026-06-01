@@ -284,6 +284,7 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
     <div class="mf"><label>ธนาคาร / เลขบัญชี</label><input type="text" id="mk" placeholder="เช่น KTB / 092-xxx-0476"></div>
     <div class="mf"><label>เงินเดือน (บาท)</label><input type="number" id="ms" placeholder="0"></div>
     <div class="mf"><label>ยอดยกมาจากเดือนก่อน (บาท)</label><input type="number" id="mc" placeholder="0"></div>
+    <div class="mf" id="mo-suspended-row" style="display:none"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600;color:#DC2626"><input type="checkbox" id="msuspended" style="width:auto;margin:0;accent-color:#DC2626"> พักงานชั่วคราว (ไม่แสดงในตารางเงินเดือน)</label></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-b" onclick="saveEmp()" style="flex:1;margin-top:0">บันทึก</button>
       <button class="btn btn-o" onclick="closeMo()" style="width:auto;padding:13px 20px;margin-top:0">ยกเลิก</button>
@@ -350,8 +351,8 @@ select:focus,input:focus{outline:none;border-color:var(--blue)}
 
 <script>
 // ── VERSION ───────────────────────────────────────────────────────────────────
-var BUILD_TIME = "2026-05-30 18:00";
-var BUILD_LABEL = "v3.23";
+var BUILD_TIME = "2026-06-01 12:00";
+var BUILD_LABEL = "v3.24";
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 var db, emps=[], requests=[], ledger=[], curId=null, imgB64=null, imgMime="image/jpeg", isOnline=false;
@@ -1433,7 +1434,8 @@ function renderPayroll(){
   var c=document.getElementById('payroll-table');
   if(!emps.length){c.innerHTML='<div class="empty"><div class="ei">👤</div><p>ยังไม่มีพนักงาน</p></div>';return;}
 
-  var rows=emps.map(function(emp){
+  var activeEmps=emps.filter(function(e){ return !e.suspended; });
+  var rows=activeEmps.map(function(emp){
     var allTx=getMergedTx(emp);
     var moTx=allTx.filter(function(t){ return (t.date||'').startsWith(curMo); });
     var approved=moTx.filter(function(t){return !t._fromReq||(t._fromReq&&t.status==='approved');});
@@ -1468,7 +1470,7 @@ function renderPayroll(){
     +'</tr>';
   }).join('');
 
-  var totalAll=emps.reduce(function(s,emp){
+  var totalAll=activeEmps.reduce(function(s,emp){
     var ex2=getEx(emp,curMo);var de2=getDe(emp,curMo);
     var sal2=getMoSalary(emp,curMo);var car2=getMoCarry(emp,curMo);
     var moTxAll=getMergedTx(emp).filter(function(t){ return (t.date||'').startsWith(curMo); });
@@ -1480,11 +1482,11 @@ function renderPayroll(){
     return s+net;
   },0);
 
-  var totalOutstanding=emps.reduce(function(s,e){return s+calculateEmployeeAdvance(e.id).outstanding;},0);
+  var totalOutstanding=activeEmps.reduce(function(s,e){return s+calculateEmployeeAdvance(e.id).outstanding;},0);
 
   // ── สรุปรายละเอียดเงินเดือนประจำเดือน ──
   var _ps={sal:0,ot:0,travel:0,phone:0,other:0,absent:0,insurance:0,social:0,carry:0,adv:0};
-  emps.forEach(function(_e){
+  activeEmps.forEach(function(_e){
     var _ex=getEx(_e,curMo); var _de=getDe(_e,curMo);
     var _appr=getMergedTx(_e).filter(function(t){return (t.date||'').startsWith(curMo)&&(!t._fromReq||(t._fromReq&&t.status==='approved'));});
     _ps.sal+=getMoSalary(_e,curMo);
@@ -1566,8 +1568,9 @@ function renderPayroll(){
 }
 
 async function printPayrollAll(){
-  // สั่งพิมพ์สลิปทีละคน
+  // สั่งพิมพ์สลิปทีละคน (ข้ามพนักงานพักงานชั่วคราว)
   for(var i=0;i<emps.length;i++){
+    if(emps[i].suspended) continue;
     printSlipEmp(emps[i].id);
     if(i<emps.length-1) await new Promise(function(r){setTimeout(r,400);});
   }
@@ -2009,6 +2012,8 @@ function openMo(editId){
   document.getElementById('mk').value=e?(e.bank||''):'';
   document.getElementById('ms').value=e?(e.salary||''):'';
   document.getElementById('mc').value=e?(e.carry||''):'';
+  document.getElementById('mo-suspended-row').style.display=editId?'block':'none';
+  document.getElementById('msuspended').checked=e?(e.suspended||false):false;
   // แสดงปุ่มลบเฉพาะตอนแก้ไข
   document.getElementById('mo-del-btn').style.display=editId?'block':'none';
   document.getElementById('mo').classList.add('on');
@@ -2050,7 +2055,8 @@ async function saveEmp(){
     bank:(document.getElementById('mk').value||'').trim(),
     salary:parseFloat(document.getElementById('ms').value)||0,
     carry:parseFloat(document.getElementById('mc').value)||0,
-    active:true
+    active:true,
+    suspended:document.getElementById('msuspended').checked||false
   };
   if(_editEmpId){
     var idx=emps.findIndex(function(e){return e.id===_editEmpId;});
@@ -2274,7 +2280,7 @@ function printSlip(eidOverride){
   var moRepaid=advanceRecords.filter(function(r){
     return r.employeeId===emp.id&&r.status!=='cancelled'&&(r.type==='repayment'||r.type==='clear')&&r.monthKey===curMo;
   }).reduce(function(s,r){return s+Number(r.amount||0);},0);
-  var totNet=Math.max(0,tot-moRepaid);
+  var totNet=tot; // Option A: หักเต็มจำนวน เหมือน renderDash/renderPayroll
   var ex=getEx(emp,curMo);var de=getDe(emp,curMo);
   var moSalary=getMoSalary(emp,curMo);var moCarry=getMoCarry(emp,curMo);
   var totalExtra=(ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0);
@@ -2315,8 +2321,8 @@ function printSlip(eidOverride){
   if(de.insurance)html+='<div class="row2 minus"><span class="lbl">หักเงินประกัน</span><span class="val">-฿'+fmt(de.insurance)+'</span></div>';
   if(de.social)html+='<div class="row2 minus"><span class="lbl">ประกันสังคม</span><span class="val">-฿'+fmt(de.social)+'</span></div>';
   if(moCarry)html+='<div class="row2 minus"><span class="lbl">ยกมาเดือนก่อน</span><span class="val">-฿'+fmt(moCarry)+'</span></div>';
-  if(totNet)html+='<div class="row2 minus"><span class="lbl">เบิกล่วงหน้า (คงค้าง)</span><span class="val">-฿'+fmt(totNet)+'</span></div>';
-  if(moRepaid)html+='<div class="row2" style="font-size:11.5px;color:var(--green)"><span class="lbl">↩ หักคืนเงินเบิก</span><span class="val">+฿'+fmt(moRepaid)+'</span></div>';
+  if(totNet)html+='<div class="row2 minus"><span class="lbl">เบิกล่วงหน้าเดือนนี้</span><span class="val">-฿'+fmt(totNet)+'</span></div>';
+  if(moRepaid)html+='<div style="font-size:11px;color:#94A3B8;padding:2px 0 4px 0">↳ หักคืน/เคลียร์เดือนนี้ ฿'+fmt(moRepaid)+' (บันทึกในบัญชีเบิกแล้ว)</div>';
   html+='<div class="row2"><span class="lbl" style="font-weight:600">รวมหัก</span><span class="val neg">-฿'+fmt(totalDeduct+moCarry+totNet)+'</span></div></div></div>';
   if(approvedTx.length>0){
     html+='<div class="sec"><h3>รายการเบิกล่วงหน้า (อนุมัติแล้ว)</h3>';
