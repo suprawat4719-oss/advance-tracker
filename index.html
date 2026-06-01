@@ -1435,6 +1435,7 @@ function renderPayroll(){
   if(!emps.length){c.innerHTML='<div class="empty"><div class="ei">👤</div><p>ยังไม่มีพนักงาน</p></div>';return;}
 
   var activeEmps=emps.filter(function(e){ return !e.suspended; });
+  if(!activeEmps.length){c.innerHTML='<div class="card" style="text-align:center;padding:28px;color:var(--gray)"><div style="font-size:32px;margin-bottom:8px">⏸️</div><p>พนักงานทุกคนอยู่ในสถานะพักงานชั่วคราว<br><span style="font-size:12px">แก้ไขสถานะพนักงานผ่านหน้า Dashboard ▸ ✏️ แก้ไข</span></p></div>';return;}
   var rows=activeEmps.map(function(emp){
     var allTx=getMergedTx(emp);
     var moTx=allTx.filter(function(t){ return (t.date||'').startsWith(curMo); });
@@ -2270,6 +2271,7 @@ function renderExp(){
 
 function printSlipForEmp(eid){ printSlip(eid); }
 function printSlip(eidOverride){
+  try{
   var eid=eidOverride||document.getElementById('sel3').value;
   var emp=emps.find(function(e){return e.id===eid;});
   if(!emp){toast('กรุณาเลือกพนักงานก่อน');return;}
@@ -2336,7 +2338,8 @@ function printSlip(eidOverride){
   html+='<script>window.onload=function(){window.print();}<\/script></body></html>';
   var w=window.open('','_blank');
   if(w){w.document.write(html);w.document.close();}
-  else toast('⚠️ กรุณาอนุญาต Popup ในเบราว์เซอร์');
+  else toast('⚠️ กรุณาอนุญาต Popup ในเบราว์เซอร์ (คลิกที่แถบด้านบนเพื่ออนุญาต)');
+  }catch(err){toast('❌ เกิดข้อผิดพลาด: '+err.message);console.error('[printSlip]',err);}
 }
 
 function expCSV(eid){
