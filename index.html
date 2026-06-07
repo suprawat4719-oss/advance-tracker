@@ -1409,8 +1409,11 @@ function getMergedTx(emp){
   // 2. employees.transactions[] ที่ไม่มีใน requests (legacy records)
   // กรอง _source=finance_app ด้วย isAdvanceRecord เพื่อป้องกัน payroll/travel หลุดเข้ามา
   var reqIds=new Set(txs.map(function(t){return t.id;}));
+  var reqRefs=new Set(txs.map(function(t){return t.referenceNo||t.ref||'';}).filter(Boolean));
   (emp.transactions||[]).forEach(function(t){
     if(reqIds.has(t.id)) return;
+    // dedup ด้วย referenceNo ด้วย — ป้องกัน legacy หลุดกลับมาเมื่อ advance_request ถูกลบ
+    if(t.ref&&reqRefs.has(t.ref)) return;
     if(t._source==='finance_app'&&!isAdvanceRecord(t)) return;
     txs.push(Object.assign({},t,{_legacy:true,status:t.status||'approved'}));
   });
