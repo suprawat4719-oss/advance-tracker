@@ -1590,11 +1590,18 @@ function printSlipEmp(eid){
 }
 
 function refSel(){
+  // ไม่แสดงพนักงานที่พักงานชั่วคราว (suspended) ใน dropdown เลือกพนักงานทุกจุด
+  // แต่ยังคงข้อมูล/ประวัติเบิกเก่าของพนักงานคนนั้นไว้ในฐานข้อมูลตามปกติ ไม่ลบทิ้ง
+  var visibleEmps=emps.filter(function(e){return !e.suspended;});
+  // ถ้า curId ที่เลือกอยู่ตอนนี้เป็นพนักงานที่ถูกซ่อน (suspended) ให้สลับไปคนแรกที่ยังใช้งานอยู่แทน
+  if(curId&&!visibleEmps.some(function(e){return e.id===curId;})){
+    curId=visibleEmps.length?visibleEmps[0].id:null;
+  }
   ['sel1','sel2','sel3'].forEach(function(id){
     var el=document.getElementById(id);if(!el)return;
-    el.innerHTML=emps.length===0
+    el.innerHTML=visibleEmps.length===0
       ?'<option value="">-- ยังไม่มีพนักงาน --</option>'
-      :emps.map(function(e){
+      :visibleEmps.map(function(e){
         var display=getEmployeeDisplay(e);
         return'<option value="'+e.id+'"'+(e.id===curId?' selected':'')+'>'+display+'</option>';
       }).join('');
