@@ -1454,7 +1454,7 @@ function renderPayroll(){
     // Option A: advance หักเต็มจำนวน — moRepaid บันทึกในบัญชีเบิกเท่านั้น ไม่กระทบ net salary
     var totNet=totalAdv;
     var totalExtra=(ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0);
-    var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0);
+    var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0)+(de.partial||0);
     var net=moSal+totalExtra-totalDeduct-moCar-totNet;
     var negStyle=net<0?'color:var(--red);font-weight:700':'color:var(--green);font-weight:700';
     var advCalc=calculateEmployeeAdvance(emp.id);
@@ -1485,25 +1485,25 @@ function renderPayroll(){
     var totalAdv2=approved.reduce(function(s2,t){return s2+Number(t.amount);},0);
     // Option A: advance หักเต็มจำนวน
     var totNet2=totalAdv2;
-    var net=sal2+((ex2.ot||0)+(ex2.travel||0)+(ex2.phone||0)+(ex2.other||0))-((de2.absent||0)+(de2.insurance||0)+(de2.social||0))-car2-totNet2;
+    var net=sal2+((ex2.ot||0)+(ex2.travel||0)+(ex2.phone||0)+(ex2.other||0))-((de2.absent||0)+(de2.insurance||0)+(de2.social||0)+(de2.partial||0))-car2-totNet2;
     return s+Math.max(0,net);
   },0);
 
   var totalOutstanding=activeEmps.reduce(function(s,e){return s+calculateEmployeeAdvance(e.id).outstanding;},0);
 
   // ── สรุปรายละเอียดเงินเดือนประจำเดือน ──
-  var _ps={sal:0,ot:0,travel:0,phone:0,other:0,absent:0,insurance:0,social:0,carry:0,adv:0};
+  var _ps={sal:0,ot:0,travel:0,phone:0,other:0,absent:0,insurance:0,social:0,partial:0,carry:0,adv:0};
   activeEmps.forEach(function(_e){
     var _ex=getEx(_e,curMo); var _de=getDe(_e,curMo);
     var _appr=getMergedTx(_e).filter(function(t){return (t.date||'').startsWith(curMo)&&(!t._fromReq||(t._fromReq&&t.status==='approved'));});
     _ps.sal+=getMoSalary(_e,curMo);
     _ps.ot+=(_ex.ot||0); _ps.travel+=(_ex.travel||0); _ps.phone+=(_ex.phone||0); _ps.other+=(_ex.other||0);
-    _ps.absent+=(_de.absent||0); _ps.insurance+=(_de.insurance||0); _ps.social+=(_de.social||0);
+    _ps.absent+=(_de.absent||0); _ps.insurance+=(_de.insurance||0); _ps.social+=(_de.social||0); _ps.partial+=(_de.partial||0);
     _ps.carry+=getMoCarry(_e,curMo);
     _ps.adv+=_appr.reduce(function(s,t){return s+Number(t.amount);},0);
   });
   var _psExtra=_ps.ot+_ps.travel+_ps.phone+_ps.other;
-  var _psDeduct=_ps.absent+_ps.insurance+_ps.social;
+  var _psDeduct=_ps.absent+_ps.insurance+_ps.social+_ps.partial;
   var _summaryHtml='<div class="card" style="margin-bottom:12px;padding:16px">'
     +'<div style="font-size:14px;font-weight:700;color:var(--navy);margin-bottom:12px">📊 สรุปเงินเดือน '+moLabel(curMo)+'</div>'
     +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px">'
@@ -1653,7 +1653,7 @@ function calcNetRaw(emp, mo, totalAdv, carry){
   var de=getDe(emp,mo);
   var sal=getMoSalary(emp,mo);
   var totalExtra=(ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0);
-  var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0);
+  var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0)+(de.partial||0);
   return sal+totalExtra-totalDeduct-carry-totalAdv;
 }
 
@@ -1708,7 +1708,7 @@ function renderDash(){
   var moSalary=getMoSalary(emp,curMo);
   var moCarry=getMoCarry(emp,curMo);
   var totalExtra=(ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0);
-  var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0);
+  var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0)+(de.partial||0);
   // คำนวณยอดสุทธิ: เงินเดือน + รายได้เพิ่ม - รายการหัก - ยกมาเดือนก่อน - เบิกเดือนนี้
   var advCalcPre=calculateEmployeeAdvance(emp.id);
   var outstandingAll=advCalcPre.outstanding||0;
@@ -1833,13 +1833,26 @@ function renderDash(){
           +'<div class="xfi"><label>หักเงินประกัน</label><input type="number" id="d_insurance" value="'+(de.insurance||'')+'" placeholder="0"'+(isClosed?' disabled':'')+' ></div>'
           +'<div class="xfi full"><label>หักประกันสังคม</label><input type="number" id="d_social" value="'+(de.social||'')+'" placeholder="0"'+(isClosed?' disabled':'')+' ></div>'
         +'</div>'
-        +'<button onclick="saveExtras()" '+(isClosed?'disabled ':'')+'style="margin-top:10px;width:100%;padding:9px;border:none;border-radius:8px;background:rgba(255,255,255,.15);color:#fff;font-size:13px;font-weight:600;'+(isClosed?'opacity:.4;cursor:not-allowed;':'cursor:pointer;')+'font-family:inherit">💾 บันทึกรายได้ / หัก</button>'
+      +'</div>'
+      +'<div class="xsec" style="margin-top:8px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3)">'
+        +'<div class="xt" style="color:#FCD34D">💸 จ่ายเงินเดือนบางส่วนล่วงหน้า (นอกระบบเบิก)</div>'
+        +'<div style="font-size:10.5px;color:#CBD5E1;margin-bottom:8px;line-height:1.5">ใช้เมื่อบริษัทจ่ายเงินเดือนของเดือนนี้ล่าช้า/บางส่วนไปแล้ว (ไม่ใช่เบิกล่วงหน้า) — ยอดนี้จะถูกหักออกจากยอดสุทธิของเดือนนี้เท่านั้น</div>'
+        +'<div class="xgrid">'
+          +'<div class="xfi"><label>จำนวนที่จ่ายไปแล้ว (บาท)</label><input type="number" id="d_partial" value="'+(de.partial||'')+'" placeholder="0"'+(isClosed?' disabled':'')+' ></div>'
+          +'<div class="xfi"><label>วันที่จ่ายจริง</label><input type="text" id="d_partial_date" value="'+(de.partialDate||'')+'" placeholder="DD/MM/YYYY"'+(isClosed?' disabled':'')+' ></div>'
+          +'<div class="xfi full"><label>หมายเหตุ</label><input type="text" id="d_partial_note" value="'+(de.partialNote||'')+'" placeholder="เช่น จ่ายสดวันที่ 4 ส.ค. เนื่องจากเงินเดือนล่าช้า"'+(isClosed?' disabled':'')+' ></div>'
+        +'</div>'
+      +'</div>'
+      +'<div style="margin-top:8px">'
+        +'<button onclick="saveExtras()" '+(isClosed?'disabled ':'')+'style="margin-top:2px;width:100%;padding:9px;border:none;border-radius:8px;background:rgba(255,255,255,.15);color:#fff;font-size:13px;font-weight:600;'+(isClosed?'opacity:.4;cursor:not-allowed;':'cursor:pointer;')+'font-family:inherit">💾 บันทึกรายได้ / หัก</button>'
       +'</div>'
     +'</div>'
     +'<div class="expbox" style="margin-bottom:12px">'
       +'<div class="exprow"><span style="color:var(--gray)">เงินเดือน</span><span style="font-weight:600">฿'+fmt(moSalary)+'</span></div>'
       +(totalExtra>0?'<div class="exprow"><span style="color:var(--gray)">รายได้เพิ่มเติม</span><span style="font-weight:600;color:var(--green)">+฿'+fmt(totalExtra)+'</span></div>':'')
-      +(totalDeduct>0?'<div class="exprow"><span style="color:var(--gray)">รายการหัก</span><span style="font-weight:600;color:var(--red)">-฿'+fmt(totalDeduct)+'</span></div>':'')
+      +((totalDeduct-(de.partial||0))>0?'<div class="exprow"><span style="color:var(--gray)">รายการหัก</span><span style="font-weight:600;color:var(--red)">-฿'+fmt(totalDeduct-(de.partial||0))+'</span></div>':'')
+      +((de.partial||0)>0?'<div class="exprow"><span style="color:var(--gray)">จ่ายเงินเดือนบางส่วนล่วงหน้าแล้ว'+(de.partialDate?' <span style="font-size:10px;color:#94A3B8">('+de.partialDate+')</span>':'')+'</span><span style="font-weight:600;color:var(--red)">-฿'+fmt(de.partial)+'</span></div>':'')
+      +((de.partial||0)>0&&de.partialNote?'<div class="exprow" style="font-size:11px;color:#94A3B8;padding-top:0"><span>↳ '+de.partialNote+'</span></div>':'')
       +(moCarry>0?'<div class="exprow"><span style="color:var(--gray)">ยกมาเดือนก่อน <span style="font-size:10px;color:#94A3B8">(อัตโนมัติ)</span></span><span style="font-weight:600;color:var(--red)">-฿'+fmt(moCarry)+'</span></div>':'')
       +(tot>0
         ?'<div class="exprow"><span style="color:var(--gray)">เบิกล่วงหน้าเดือนนี้</span><span style="font-weight:600;color:var(--red)">-฿'+fmt(tot)+'</span></div>'
@@ -1867,7 +1880,7 @@ async function saveExtras(){
   // บันทึกแบบ per-month เท่านั้น — ไม่แตะ global e.extras/e.deducts
   // เพื่อให้แต่ละเดือนเป็นอิสระจากกันอย่างสมบูรณ์
   var newExtras={ot:fv('x_ot'),travel:fv('x_travel'),phone:fv('x_phone'),other:fv('x_other')};
-  var newDeducts={absent:fv('d_absent'),insurance:fv('d_insurance'),social:fv('d_social')};
+  var newDeducts={absent:fv('d_absent'),insurance:fv('d_insurance'),social:fv('d_social'),partial:fv('d_partial'),partialDate:(document.getElementById('d_partial_date').value||'').trim(),partialNote:(document.getElementById('d_partial_note').value||'').trim()};
   setMonthData(e, curMo, {extras:newExtras, deducts:newDeducts});
   saveLocal(); _hasPendingChanges=true;
   if(isOnline&&db){
@@ -2257,7 +2270,7 @@ function renderExp(){
   var ex=getEx(emp,curMo);var de=getDe(emp,curMo);
   var moSalary=getMoSalary(emp,curMo);var moCarry=getMoCarry(emp,curMo);
   var totalExtra=(ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0);
-  var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0);
+  var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0)+(de.partial||0);
   var net=moSalary+totalExtra-totalDeduct-moCarry-totNet;
   var pendCount=moTxExp.filter(function(t){return t._fromReq&&t.status==='pending_approval';}).length;
   c.innerHTML=
@@ -2266,7 +2279,8 @@ function renderExp(){
     +'<div class="expbox">'
       +'<div class="exprow"><span style="color:var(--gray)">เงินเดือน</span><span style="font-weight:600">฿'+fmt(moSalary)+'</span></div>'
       +'<div class="exprow"><span style="color:var(--gray)">รายได้เพิ่มเติม</span><span style="font-weight:600;color:var(--green)">+฿'+fmt(totalExtra)+'</span></div>'
-      +'<div class="exprow"><span style="color:var(--gray)">รายการหัก</span><span style="font-weight:600;color:var(--red)">-฿'+fmt(totalDeduct)+'</span></div>'
+      +'<div class="exprow"><span style="color:var(--gray)">รายการหัก</span><span style="font-weight:600;color:var(--red)">-฿'+fmt(totalDeduct-(de.partial||0))+'</span></div>'
+      +((de.partial||0)>0?'<div class="exprow"><span style="color:var(--gray)">จ่ายเงินเดือนบางส่วนล่วงหน้าแล้ว'+(de.partialDate?' ('+de.partialDate+')':'')+'</span><span style="font-weight:600;color:var(--red)">-฿'+fmt(de.partial)+'</span></div>':'')
       +'<div class="exprow"><span style="color:var(--gray)">ยกมาเดือนก่อน</span><span style="font-weight:600">฿'+fmt(moCarry)+'</span></div>'
       +'<div class="exprow"><span style="color:var(--gray)">คงค้างเบิก (อนุมัติ)</span><span style="font-weight:600;color:var(--blue)">฿'+fmt(totNet)+(moRepaid>0?' <span style="font-size:11px;color:var(--green)">(หักคืน ฿'+fmt(moRepaid)+')</span>':'')+'</span></div>'
       +'<div class="exprow last"><span style="font-weight:600">ยอดสุทธิ</span><span style="font-weight:700;color:'+(net>=0?'var(--green)':'var(--red)')+';">'+(net>=0?'+':'')+'฿'+fmt(net)+'</span></div>'
@@ -2292,7 +2306,7 @@ function printSlip(eidOverride){
   var ex=getEx(emp,curMo);var de=getDe(emp,curMo);
   var moSalary=getMoSalary(emp,curMo);var moCarry=getMoCarry(emp,curMo);
   var totalExtra=(ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0);
-  var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0);
+  var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0)+(de.partial||0);
   var net=moSalary+totalExtra-totalDeduct-moCarry-totNet;
   var today=new Date();
   var dateStr=today.getDate()+'/'+('0'+(today.getMonth()+1)).slice(-2)+'/'+(today.getFullYear()+543);
@@ -2328,6 +2342,8 @@ function printSlip(eidOverride){
   if(de.absent)html+='<div class="row2 minus"><span class="lbl">ขาด/ลา/มาสาย</span><span class="val">-฿'+fmt(de.absent)+'</span></div>';
   if(de.insurance)html+='<div class="row2 minus"><span class="lbl">หักเงินประกัน</span><span class="val">-฿'+fmt(de.insurance)+'</span></div>';
   if(de.social)html+='<div class="row2 minus"><span class="lbl">ประกันสังคม</span><span class="val">-฿'+fmt(de.social)+'</span></div>';
+  if(de.partial)html+='<div class="row2 minus"><span class="lbl">จ่ายเงินเดือนบางส่วนล่วงหน้าแล้ว'+(de.partialDate?' ('+de.partialDate+')':'')+'</span><span class="val">-฿'+fmt(de.partial)+'</span></div>';
+  if(de.partial&&de.partialNote)html+='<div style="font-size:10px;color:#94A3B8;padding:0 0 4px 0">↳ '+de.partialNote+'</div>';
   if(moCarry)html+='<div class="row2 minus"><span class="lbl">ยกมาเดือนก่อน</span><span class="val">-฿'+fmt(moCarry)+'</span></div>';
   if(totNet)html+='<div class="row2 minus"><span class="lbl">เบิกล่วงหน้าเดือนนี้</span><span class="val">-฿'+fmt(totNet)+'</span></div>';
   if(moRepaid)html+='<div style="font-size:11px;color:#94A3B8;padding:2px 0 4px 0">↳ หักคืน/เคลียร์เดือนนี้ ฿'+fmt(moRepaid)+' (บันทึกในบัญชีเบิกแล้ว)</div>';
@@ -2354,24 +2370,24 @@ function printPayrollSummary(){
   if(!activeEmps.length){toast('ไม่มีพนักงาน');return;}
 
   // ── คำนวณยอดรวม (เหมือน renderPayroll) ──
-  var _ps={sal:0,ot:0,travel:0,phone:0,other:0,absent:0,insurance:0,social:0,carry:0,adv:0};
+  var _ps={sal:0,ot:0,travel:0,phone:0,other:0,absent:0,insurance:0,social:0,partial:0,carry:0,adv:0};
   activeEmps.forEach(function(_e){
     var _ex=getEx(_e,curMo);var _de=getDe(_e,curMo);
     var _appr=getMergedTx(_e).filter(function(t){return (t.date||'').startsWith(curMo)&&(!t._fromReq||(t._fromReq&&t.status==='approved'));});
     _ps.sal+=getMoSalary(_e,curMo);
     _ps.ot+=(_ex.ot||0);_ps.travel+=(_ex.travel||0);_ps.phone+=(_ex.phone||0);_ps.other+=(_ex.other||0);
-    _ps.absent+=(_de.absent||0);_ps.insurance+=(_de.insurance||0);_ps.social+=(_de.social||0);
+    _ps.absent+=(_de.absent||0);_ps.insurance+=(_de.insurance||0);_ps.social+=(_de.social||0);_ps.partial+=(_de.partial||0);
     _ps.carry+=getMoCarry(_e,curMo);
     _ps.adv+=_appr.reduce(function(s,t){return s+Number(t.amount);},0);
   });
   var _psExtra=_ps.ot+_ps.travel+_ps.phone+_ps.other;
-  var _psDeduct=_ps.absent+_ps.insurance+_ps.social;
+  var _psDeduct=_ps.absent+_ps.insurance+_ps.social+_ps.partial;
   var totalAll=activeEmps.reduce(function(s,emp){
     var ex2=getEx(emp,curMo);var de2=getDe(emp,curMo);
     var sal2=getMoSalary(emp,curMo);var car2=getMoCarry(emp,curMo);
     var appr2=getMergedTx(emp).filter(function(t){return (t.date||'').startsWith(curMo)&&(!t._fromReq||(t._fromReq&&t.status==='approved'));});
     var adv2=appr2.reduce(function(s2,t){return s2+Number(t.amount);},0);
-    var net=sal2+((ex2.ot||0)+(ex2.travel||0)+(ex2.phone||0)+(ex2.other||0))-((de2.absent||0)+(de2.insurance||0)+(de2.social||0))-car2-adv2;
+    var net=sal2+((ex2.ot||0)+(ex2.travel||0)+(ex2.phone||0)+(ex2.other||0))-((de2.absent||0)+(de2.insurance||0)+(de2.social||0)+(de2.partial||0))-car2-adv2;
     return s+Math.max(0,net);
   },0);
   var totalOutstanding=activeEmps.reduce(function(s,e){return s+calculateEmployeeAdvance(e.id).outstanding;},0);
@@ -2387,7 +2403,7 @@ function printPayrollSummary(){
     var totalAdv=approved.reduce(function(s,t){return s+Number(t.amount);},0);
     var totNet=totalAdv;
     var totalExtra=(ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0);
-    var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0);
+    var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0)+(de.partial||0);
     var net=moSal+totalExtra-totalDeduct-moCar-totNet;
     var netColor=net<0?'#DC2626':'#16A34A';
     var advCalc=calculateEmployeeAdvance(emp.id);
@@ -2465,6 +2481,7 @@ function printPayrollSummary(){
         +'<div class="drow"><span style="color:#6B7280">ขาด/ลา/มาสาย</span><span style="color:#DC2626;font-weight:600">-฿'+fmt(_ps.absent)+'</span></div>'
         +'<div class="drow"><span style="color:#6B7280">หักเงินประกัน</span><span style="color:#DC2626;font-weight:600">-฿'+fmt(_ps.insurance)+'</span></div>'
         +'<div class="drow"><span style="color:#6B7280">ประกันสังคม</span><span style="color:#DC2626;font-weight:600">-฿'+fmt(_ps.social)+'</span></div>'
+        +(_ps.partial>0?'<div class="drow"><span style="color:#6B7280">จ่ายเงินเดือนบางส่วนล่วงหน้า</span><span style="color:#DC2626;font-weight:600">-฿'+fmt(_ps.partial)+'</span></div>':'')
         +'<div class="drow"><span style="color:#6B7280">ยกมาเดือนก่อน</span><span style="color:#DC2626;font-weight:600">-฿'+fmt(_ps.carry)+'</span></div>'
       +'</div>'
     +'</div>'
@@ -2517,6 +2534,7 @@ function expCSV(eid){
     allTx.map(function(t,i){return[i+1,fmtDate(t.date),t.category||t.bank,t.recipient||'',t.amount,t.ref,t._fromReq?(t.status||'pending_approval'):'legacy',t.imgUrl||''];}));
   rows.push([]);
   rows.push(['เงินเดือน',getMoSalary(emp,curMo),'','','รายได้เพิ่ม',((ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0))]);
+  if(de.partial)rows.push(['จ่ายเงินเดือนบางส่วนล่วงหน้าแล้ว',de.partial,de.partialDate||'',de.partialNote||'']);
   var csv=rows.map(function(r){return r.map(function(c){return'"'+String(c).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
   var a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));a.download='เบิกล่วงหน้า_'+emp.name+'.csv';a.click();
 }
@@ -2536,13 +2554,14 @@ function cpTxt(eid){
   }).reduce(function(s,r){return s+Number(r.amount||0);},0);
   var totNet=tot;
   var totalExtra=(ex.ot||0)+(ex.travel||0)+(ex.phone||0)+(ex.other||0);
-  var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0);
+  var totalDeduct=(de.absent||0)+(de.insurance||0)+(de.social||0)+(de.partial||0);
   var net=moSalary+totalExtra-totalDeduct-moCarry-totNet;
   var t='รายการเบิกล่วงหน้า — '+emp.name+' ('+moLabel(curMo)+')\n'+'='.repeat(36)+'\n';
   moTxApproved.forEach(function(x,i){t+=(i+1)+'. '+fmtDate(x.date)+' | '+(x.category||x.bank)+' | ผู้รับ: '+(x.recipient||'-')+' | ฿'+Number(x.amount).toLocaleString('th-TH')+'\n';});
   t+='='.repeat(36)+'\nเงินเดือน: ฿'+moSalary.toLocaleString('th-TH')+'\n';
   if(totalExtra)t+='รายได้เพิ่ม: +฿'+totalExtra.toLocaleString('th-TH')+'\n';
-  if(totalDeduct)t+='รายการหัก: -฿'+totalDeduct.toLocaleString('th-TH')+'\n';
+  if((totalDeduct-(de.partial||0)))t+='รายการหัก: -฿'+(totalDeduct-(de.partial||0)).toLocaleString('th-TH')+'\n';
+  if(de.partial)t+='จ่ายเงินเดือนบางส่วนล่วงหน้าแล้ว'+(de.partialDate?' ('+de.partialDate+')':'')+': -฿'+de.partial.toLocaleString('th-TH')+(de.partialNote?' ['+de.partialNote+']':'')+'\n';
   if(moCarry)t+='ยกมาเดือนก่อน: -฿'+moCarry.toLocaleString('th-TH')+'\n';
   if(tot)t+='เบิกล่วงหน้า: -฿'+tot.toLocaleString('th-TH')+'\n';
   if(moRepaid)t+='[หักคืน/เคลียร์บัญชีเบิก: ฿'+moRepaid.toLocaleString('th-TH')+']\n';
