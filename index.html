@@ -1684,15 +1684,29 @@ function getMoCarry(emp, mo){
   var allMo=Object.keys(emp.monthData||{})
     .filter(function(m){return m<mo;})
     .sort();
-  if(allMo.length===0) return emp.carry||0;
-  var carry=emp.carry||0;
-  for(var i=0;i<allMo.length;i++){
-    var m=allMo[i];
-    var adv=getMoTotalAdv(emp,m);
-    var net=calcNetRaw(emp,m,adv,carry);
-    carry=net<0?Math.abs(net):0;
+  var rawCarry;
+  if(allMo.length===0){
+    rawCarry=emp.carry||0;
+  }else{
+    var carry=emp.carry||0;
+    for(var i=0;i<allMo.length;i++){
+      var m=allMo[i];
+      var adv=getMoTotalAdv(emp,m);
+      var net=calcNetRaw(emp,m,adv,carry);
+      carry=net<0?Math.abs(net):0;
+    }
+    rawCarry=carry;
   }
-  return carry;
+  // หักลบด้วยยอด "หักคืน/เคลียร์ยอด" ที่พนักงานนำเงินมาคืนจริง (บันทึกผ่านปุ่มหักคืน/เคลียร์ยอด)
+  // นับเฉพาะรายการที่วันที่ "ก่อนวันที่ 1 ของเดือน mo" เท่านั้น — เพื่อให้ยอดยกมาของเดือนที่ผ่านมา
+  // (โดยเฉพาะเดือนที่ปิดแล้ว) ไม่ถูกแตะต้อง แต่เดือนถัดจากที่คืนเงินจริงจะเห็นยอดยกมาลดลง/หมดไปอัตโนมัติ
+  var cutoff=mo+'-01';
+  var repaidBeforeMo=(typeof advanceRecords!=='undefined'?advanceRecords:[]).filter(function(r){
+    return r.employeeId===emp.id && r.status!=='cancelled'
+      && (r.type==='repayment'||r.type==='clear')
+      && (r.date||'')<cutoff;
+  }).reduce(function(s,r){return s+Number(r.amount||0);},0);
+  return Math.max(0, rawCarry-repaidBeforeMo);
 }
 
 function renderDash(){
