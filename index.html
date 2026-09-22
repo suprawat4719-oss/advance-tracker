@@ -736,7 +736,17 @@ function calculateEmployeeAdvance(empId){
   });
   var totalCleared=empRecs.filter(function(r){return r.type==='repayment'||r.type==='clear';})
     .reduce(function(s,r){return s+Number(r.amount||0);},0);
-  var outstanding=Math.max(0, totalAdvance-totalCleared);
+  // ยอดคงค้างจริง: ต้องคิดรวม "ยอดที่ถูกหักคืนผ่านเงินเดือนอัตโนมัติ" (ยกมาเดือนก่อน/ยอดสุทธิติดลบ)
+  // ด้วย ไม่ใช่แค่ยอดที่กด "หักคืน/เคลียร์ยอด" เป็นเงินสดเท่านั้น — ใช้ chain เดียวกับ getMoCarry()
+  // ซึ่งรู้จักทั้ง 2 ช่องทางการหักคืนอยู่แล้ว เพื่อไม่ให้ยอดคงค้างสูงเกินจริง
+  var outstanding=totalAdvance>0?Math.max(0, totalAdvance-totalCleared):0;
+  if(emp){
+    var dataMonths=Object.keys(emp.monthData||{});
+    var latestDataMo=dataMonths.length?dataMonths.sort().slice(-1)[0]:null;
+    var chainThruMo=(latestDataMo&&latestDataMo>curMo)?latestDataMo:curMo;
+    var nextMo=shiftMonth(chainThruMo,1);
+    outstanding=getMoCarry(emp,nextMo);
+  }
   // แยก outstanding ก่อนเดือนนี้ (ไม่รวมเบิกเดือนนี้)
   var advThisMonth=empReqs.filter(function(r){
     return (r.date||'').startsWith(curMo);
